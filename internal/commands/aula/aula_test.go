@@ -1,0 +1,240 @@
+package aula
+
+import (
+	"reflect"
+	"testing"
+	// "time" // Not used directly in these tests after all
+
+	"vickgenda/internal/models"
+)
+
+func TestCriarAula(t *testing.T) {
+    LimparStoreAulas()
+	disciplina := "Matemática"
+	topico := "Equações de 1º Grau"
+	dataStr := "25-07-2024"
+	horaStr := "10:00"
+	turma := "TMA1"
+	plano := "Resolver equações"
+	obs := "Alunos atentos"
+
+	lesson, err := CriarAula(disciplina, topico, dataStr, horaStr, turma, plano, obs)
+	if err != nil {
+		t.Fatalf("Erro ao criar aula: %v", err)
+	}
+
+	if lesson.ID == "" {
+		t.Errorf("Esperado ID preenchido, veio vazio")
+	}
+	if lesson.Subject != disciplina {
+		t.Errorf("Esperado disciplina '%s', veio '%s'", disciplina, lesson.Subject)
+	}
+	_, err = CriarAula("", "", "", "", "", "", "")
+	if err == nil {
+		t.Errorf("Esperado erro por campos obrigatórios, não ocorreu")
+	}
+}
+
+func TestVerAula(t *testing.T) {
+    LimparStoreAulas()
+	l, _ := CriarAula("Física", "Leis de Newton", "26-07-2024", "14:00", "TFB1", "Explicar leis", "N/A")
+
+	retrievedLesson, err := VerAula(l.ID)
+	if err != nil {
+		t.Fatalf("Erro ao ver aula: %v", err)
+	}
+	if retrievedLesson.ID != l.ID {
+		t.Errorf("Esperado ID '%s', veio '%s'", l.ID, retrievedLesson.ID)
+	}
+	_, err = VerAula("id_invalido")
+	if err == nil {
+		t.Errorf("Esperado erro de aula não encontrada, não ocorreu")
+	}
+}
+
+func TestListarAulas(t *testing.T) {
+    LimparStoreAulas()
+	aula1, _ := CriarAula("Matemática", "Soma", "01-08-2024", "08:00", "TMA", "Introdução à soma", "")
+	aula2, _ := CriarAula("Português", "Verbos", "01-08-2024", "10:00", "TPA", "Verbos regulares", "")
+	aula3, _ := CriarAula("Matemática", "Subtração", "02-08-2024", "08:00", "TMA", "Introdução à subtração", "")
+    aula4, _ := CriarAula("História", "Descobrimento", "15-07-2024", "08:00", "THA", "", "")
+
+	testCases := []struct {
+		name             string
+		disciplinaFilter string
+		turmaFilter      string
+		periodoFilter    string
+        mesFilter        string
+        anoFilter        string
+		expectedCount    int
+        expectedLessons  map[string]models.Lesson
+	}{
+		{"sem filtro", "", "", "", "", "", 4, map[string]models.Lesson{aula1.ID: aula1, aula2.ID: aula2, aula3.ID: aula3, aula4.ID: aula4}},
+		{"filtro disciplina", "Matemática", "", "", "", "", 2, map[string]models.Lesson{aula1.ID: aula1, aula3.ID: aula3}},
+		{"filtro disciplina inexistente", "Química", "", "", "", "", 0, map[string]models.Lesson{}},
+		{"filtro turma", "", "TPA", "", "", "", 1, map[string]models.Lesson{aula2.ID: aula2}},
+		{"filtro periodo", "", "", "01-08-2024:01-08-2024", "", "", 2, map[string]models.Lesson{aula1.ID: aula1, aula2.ID: aula2}},
+        {"filtro periodo abrangente", "", "", "01-07-2024:30-08-2024", "", "", 4, map[string]models.Lesson{aula1.ID: aula1, aula2.ID: aula2, aula3.ID: aula3, aula4.ID: aula4}},
+        {"filtro mes", "", "", "", "08-2024", "", 3, map[string]models.Lesson{aula1.ID: aula1, aula2.ID: aula2, aula3.ID: aula3}},
+        {"filtro ano", "", "", "", "", "2024", 4, map[string]models.Lesson{aula1.ID: aula1, aula2.ID: aula2, aula3.ID: aula3, aula4.ID: aula4}},
+        {"filtro combinado disciplina e turma", "Matemática", "TMA", "", "", "", 2, map[string]models.Lesson{aula1.ID: aula1, aula3.ID: aula3}},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			result, err := ListarAulas(tc.disciplinaFilter, tc.turmaFilter, tc.periodoFilter, tc.mesFilter, tc.anoFilter)
+			if err != nil {
+				t.Fatalf("Erro ao listar aulas: %v", err)
+			}
+			if len(result) != tc.expectedCount {
+				t.Errorf("Esperado %d aulas, obteve %d. Filtros: D='%s', T='%s', P='%s', M='%s', A='%s'", tc.expectedCount, len(result), tc.disciplinaFilter, tc.turmaFilter, tc.periodoFilter, tc.mesFilter, tc.anoFilter)
+			}
+            if tc.expectedCount > 0 && len(tc.expectedLessons) > 0 {
+                resultMap := make(map[string]models.Lesson)
+                for _, l_ := range result { // Renamed l to l_ to avoid conflict
+                    resultMap[l_.ID] = l_
+                }
+                if !reflect.DeepEqual(tc.expectedLessons, resultMap) {
+                     t.Errorf(`Aulas listadas não correspondem às esperadas.
+Esperado: %v
+Obtido: %v`, tc.expectedLessons, resultMap) // Corrected the variable name here from l to resultMap
+                    }
+                } else if len(result) != 0 {
+                     t.Errorf("Esperado 0 aulas, obteve %d", len(result))
+                }
+		})
+	}
+}
+
+func TestEditarPlanoAula(t *testing.T) {
+    LimparStoreAulas()
+    aulaOriginal, err := CriarAula("Biologia", "Células", "28-07-2024", "09:00", "TBA", "Plano inicial sobre células", "Obs inicial")
+    if err != nil {
+        t.Fatalf("Falha ao criar aula para teste de edição: %v", err)
+    }
+    novoPlano := "Plano atualizado sobre mitocôndrias e núcleo."
+    novasObs := "Alunos demonstraram interesse particular em ribossomos."
+
+    t.Run("editar plano e observacoes", func(t *testing.T) {
+        aulaEditada, err := EditarPlanoAula(aulaOriginal.ID, novoPlano, novasObs)
+        if err != nil {
+            t.Fatalf("Erro ao editar plano e observações: %v", err)
+        }
+        if aulaEditada.Plan != novoPlano {
+            t.Errorf("Esperado plano '%s', obteve '%s'", novoPlano, aulaEditada.Plan)
+        }
+        if aulaEditada.Observations != novasObs {
+            t.Errorf("Esperadas observações '%s', obteve '%s'", novasObs, aulaEditada.Observations)
+        }
+        if aulaEditada.Subject != aulaOriginal.Subject {
+            t.Errorf("Disciplina foi alterada indevidamente")
+        }
+    })
+    LimparStoreAulas()
+    aulaParaEditarPlano, _ := CriarAula("Química", "Tabela Periódica", "29-07-2024", "", "TQA", "Plano sobre elementos", "Obs sobre gases nobres")
+    t.Run("editar apenas plano", func(t *testing.T) {
+        planoSozinho := "Foco nos metais alcalinos."
+        aulaEditada, err := EditarPlanoAula(aulaParaEditarPlano.ID, planoSozinho, "")
+        if err != nil {
+            t.Fatalf("Erro ao editar apenas o plano: %v", err)
+        }
+        if aulaEditada.Plan != planoSozinho {
+            t.Errorf("Esperado plano '%s', obteve '%s'", planoSozinho, aulaEditada.Plan)
+        }
+        if aulaEditada.Observations != aulaParaEditarPlano.Observations {
+            t.Errorf("Observações foram alteradas indevidamente. Esperado '%s', obteve '%s'", aulaParaEditarPlano.Observations, aulaEditada.Observations)
+        }
+    })
+    LimparStoreAulas()
+    aulaParaEditarObs, _ := CriarAula("Geografia", "Relevo", "30-07-2024", "", "TGA", "Plano sobre montanhas", "Obs sobre planícies")
+    t.Run("editar apenas observacoes", func(t *testing.T) {
+        obsSozinha := "Detalhes sobre planaltos."
+        aulaEditada, err := EditarPlanoAula(aulaParaEditarObs.ID, "", obsSozinha)
+        if err != nil {
+            t.Fatalf("Erro ao editar apenas as observações: %v", err)
+        }
+        if aulaEditada.Plan != aulaParaEditarObs.Plan {
+            t.Errorf("Plano foi alterado indevidamente. Esperado '%s', obteve '%s'", aulaParaEditarObs.Plan, aulaEditada.Plan)
+        }
+        if aulaEditada.Observations != obsSozinha {
+            t.Errorf("Esperadas observações '%s', obteve '%s'", obsSozinha, aulaEditada.Observations)
+        }
+    })
+    t.Run("nenhuma alteracao", func(t *testing.T) {
+        aulaAntesDaNaoEdicao, _ := VerAula(aulaParaEditarObs.ID)
+        _, err := EditarPlanoAula(aulaParaEditarObs.ID, "", "")
+        if err == nil {
+            t.Errorf("Esperado erro por nenhuma alteração, mas não ocorreu")
+        }
+        aulaVerificada, _ := VerAula(aulaParaEditarObs.ID)
+        if aulaVerificada.Plan != aulaAntesDaNaoEdicao.Plan || aulaVerificada.Observations != aulaAntesDaNaoEdicao.Observations {
+            t.Errorf("Aula foi alterada mesmo sem fornecer novos dados para plano/obs. Antes: P='%s', O='%s'. Depois: P='%s', O='%s'",
+                aulaAntesDaNaoEdicao.Plan, aulaAntesDaNaoEdicao.Observations,
+                aulaVerificada.Plan, aulaVerificada.Observations)
+        }
+    })
+    t.Run("aula nao encontrada para edicao", func(t *testing.T) {
+        _, err := EditarPlanoAula("id_inexistente", "plano qualquer", "obs qualquer")
+        if err == nil {
+            t.Errorf("Esperado erro por aula não encontrada, mas não ocorreu")
+        }
+    })
+}
+
+func TestExcluirAula(t *testing.T) {
+    LimparStoreAulas()
+    // Criar uma aula para excluir
+    aulaParaExcluir, err := CriarAula("História", "Revolução Francesa", "10-08-2024", "", "THA", "Causas da revolução", "")
+    if err != nil {
+        t.Fatalf("Falha ao criar aula para teste de exclusão: %v", err)
+    }
+
+    // Caso 1: Excluir aula existente
+    t.Run("excluir aula existente", func(t *testing.T) {
+        err := ExcluirAula(aulaParaExcluir.ID)
+        if err != nil {
+            t.Fatalf("Erro ao excluir aula existente: %v", err)
+        }
+
+        // Verificar se a aula foi realmente removida
+        _, err = VerAula(aulaParaExcluir.ID)
+        if err == nil {
+            t.Errorf("Aula '%s' ainda encontrada após exclusão.", aulaParaExcluir.ID)
+        }
+    })
+
+    // Caso 2: Tentar excluir aula inexistente
+    t.Run("excluir aula inexistente", func(t *testing.T) {
+        err := ExcluirAula("id_que_nao_existe")
+        if err == nil {
+            t.Errorf("Esperado erro ao tentar excluir aula inexistente, mas não ocorreu.")
+        }
+    })
+
+    // Caso 3: Excluir uma, verificar se outras permanecem
+    LimparStoreAulas()
+    aulaA, _ := CriarAula("Arte", "Renascimento", "11-08-2024", "", "TAA", "", "")
+    aulaB, _ := CriarAula("Música", "Barroco", "12-08-2024", "", "TMA", "", "")
+
+    err = ExcluirAula(aulaA.ID)
+    if err != nil {
+        t.Fatalf("Erro ao excluir aulaA: %v", err)
+    }
+    _, err = VerAula(aulaA.ID)
+    if err == nil {
+        t.Errorf("AulaA ainda existe após exclusão.")
+    }
+    aulaBRecuperada, err := VerAula(aulaB.ID)
+    if err != nil {
+        t.Errorf("AulaB não encontrada após exclusão da AulaA: %v", err)
+    }
+    if aulaBRecuperada.ID != aulaB.ID {
+        t.Errorf("AulaB recuperada tem ID incorreto. Esperado %s, obteve %s", aulaB.ID, aulaBRecuperada.ID)
+    }
+    if len(lessonsStore) != 1 {
+        t.Errorf("Esperado 1 item no store, obteve %d", len(lessonsStore))
+    }
+}
+
+func TestMain(m *testing.M) {
+    m.Run()
+}

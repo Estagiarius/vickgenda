@@ -1,0 +1,436 @@
+package notas
+
+import (
+	"fmt"
+	"math"
+	"reflect"
+	"sort"
+	"testing"
+	"time" // Necessário para EditarNota e LancarNota
+
+	"vickgenda/internal/models"
+)
+
+// ... (setupGradeTests, TestLancarNota, TestVerNotas, floatEquals, sortGradesByID, TestCalcularMedia - como no diff anterior) ...
+func setupGradeTests() (studentID string, termID string) {
+	LimparStoreTermos()
+	LimparStoreGrades()
+
+	studentID = "stud001"
+	MockAddStudent(studentID, "Aluno Teste")
+	MockAddStudent("stud002", "Aluno Teste 2")
+
+
+	term, err := ConfigurarBimestreAdicionar(2024, "1º Bimestre Teste", "01-02-2024", "15-04-2024")
+	if err != nil {
+		panic(fmt.Sprintf("Falha ao criar termo mock para testes de nota: %v", err))
+	}
+	termID = term.ID
+	return
+}
+
+func TestLancarNota(t *testing.T) {
+	studentID, termID := setupGradeTests()
+	tests := []struct {
+		name          string
+		alunoID       string
+		bimestreID    string
+		disciplina    string
+		avaliacaoDesc string
+		valorNota     float64
+		pesoNota      float64
+		dataStr       string
+		expectError   bool
+		expectedValue float64
+	}{
+		{"nota válida", studentID, termID, "Matemática", "Prova 1", 8.5, 0.4, "10-03-2024", false, 8.5},
+		{"nota válida sem data (usa atual)", studentID, termID, "Português", "Redação", 7.0, 0.5, "", false, 7.0},
+		{"aluno inexistente", "stud999", termID, "Matemática", "Prova 1", 8.0, 1, "10-03-2024", true, 0},
+		{"bimestre inexistente", studentID, "term999", "Matemática", "Prova 1", 8.0, 1, "10-03-2024", true, 0},
+		{"valor da nota inválido (alto)", studentID, termID, "Mat", "P1", 11.0, 1, "10-03-2024", true, 0},
+		{"valor da nota inválido (baixo)", studentID, termID, "Mat", "P1", -1.0, 1, "10-03-2024", true, 0},
+		{"peso inválido (zero)", studentID, termID, "Mat", "P1", 8.0, 0, "10-03-2024", true, 0},
+        {"peso inválido (negativo)", studentID, termID, "Mat", "P1", 8.0, -0.5, "10-03-2024", true, 0},
+		{"campos obrigatórios faltando", "", termID, "Mat", "P1", 8.0, 1, "10-03-2024", true, 0},
+		{"data inválida", studentID, termID, "Mat", "P1", 8.0, 1, "30-02-2024", true, 0},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Limpar o store para cada subteste de LancarNota para evitar interferências de ID e contagem
+            LimparStoreGrades()
+            if tt.alunoID != "stud999" { // Se o aluno for existir no teste, adicione-o
+                MockAddStudent(tt.alunoID, "Aluno Temp")
+            }
+            if tt.bimestreID != "term999" { // Se o bimestre for existir, adicione um mock
+                 // Precisamos garantir que o Termo usado em LancarNota exista, se não for o caso de teste de bimestre inexistente.
+                 // Isso pode exigir buscar ou recriar o termID global ou um específico para o teste.
+                 // Por simplicidade, vamos assumir que o termID de setupGradeTests é válido se não for "term999"
+                 // Se o teste for sobre bimestre inexistente, GetTermByID falhará como esperado.
+                 // Se o teste é válido, GetTermByID deve funcionar.
+                 // A limpeza de term_test.go é separada. Garantir que o termID de setupGradeTests() seja usado.
+                 if _, err := GetTermByID(tt.bimestreID); err != nil && tt.bimestreID != "term999" {
+                    // Adiciona o termo principal se ele não existir e não for um teste de termo inexistente
+                     tempTerm, _ := ConfigurarBimestreAdicionar(2024, "Bimestre Temp Lancar", "01-01-2024", "31-12-2024")
+                     // Este é um hack. Idealmente, tt.bimestreID seria sempre o termID global ou um mock específico.
+                     // Vamos garantir que nos casos válidos, tt.bimestreID seja o termID do setup.
+                     // Esta linha não é ideal, pois tt.bimestreID pode ser diferente do termID do setup intencionalmente.
+                     // O setupGradeTests já cria um termID válido. Testes válidos devem usar esse.
+                     _ = tempTerm // Apenas para usar a var
+                 }
+            }
+
+
+			grade, err := LancarNota(tt.alunoID, tt.bimestreID, tt.disciplina, tt.avaliacaoDesc, tt.valorNota, tt.pesoNota, tt.dataStr)
+			if tt.expectError {
+				if err == nil {
+					t.Errorf("esperado erro, mas obteve nil")
+				}
+			} else {
+				if err != nil {
+					t.Fatalf("esperado sem erro, mas obteve: %v", err)
+				}
+				if grade.ID == "" {
+					t.Errorf("esperado ID da nota preenchido")
+				}
+				if grade.Value != tt.expectedValue {
+					t.Errorf("esperado valor da nota %.2f, obteve %.2f", tt.expectedValue, grade.Value)
+				}
+				_, exists := gradesStore[grade.ID]
+				if !exists {
+					t.Errorf("Nota não foi adicionada ao gradesStore")
+				}
+			}
+		})
+	}
+}
+
+func TestVerNotas(t *testing.T) {
+	studentID, termID := setupGradeTests()
+    otherStudentID := "stud002"
+
+    otherTerm, _ := ConfigurarBimestreAdicionar(2024, "2º Bimestre Teste", "16-04-2024", "30-06-2024")
+    otherTermID := otherTerm.ID
+
+	nota1, _ := LancarNota(studentID, termID, "Matemática", "Prova 1", 8.0, 0.4, "10-03-2024")
+	nota2, _ := LancarNota(studentID, termID, "Matemática", "Trabalho 1", 7.0, 0.3, "15-03-2024")
+	nota3, _ := LancarNota(studentID, termID, "Português", "Redação", 9.0, 0.5, "12-03-2024")
+    nota4, _ := LancarNota(studentID, otherTermID, "Matemática", "Prova 2 Bim 2", 8.5, 0.4, "05-05-2024")
+    LancarNota(otherStudentID, termID, "Matemática", "Prova 1 Outro Aluno", 6.0, 0.4, "10-03-2024")
+
+	tests := []struct {
+		name             string
+		alunoID          string
+		bimestreIDFilter string
+		disciplinaFilter string
+		expectError      bool
+		expectedCount    int
+		expectedGrades   []models.Grade
+	}{
+		{"ver todas as notas do aluno no 1o bim", studentID, termID, "", false, 3, []models.Grade{nota1, nota3, nota2}},
+		{"ver notas de Matemática do aluno no 1o bim", studentID, termID, "Matemática", false, 2, []models.Grade{nota1, nota2}},
+		{"ver notas de Português do aluno no 1o bim", studentID, termID, "Português", false, 1, []models.Grade{nota3}},
+		{"ver todas as notas do aluno (todos bimestres)", studentID, "", "", false, 4, []models.Grade{nota1, nota3, nota2, nota4}},
+		{"aluno sem notas", "stud002", otherTermID, "", false, 0, []models.Grade{}},
+		{"aluno inexistente", "stud999", "", "", true, 0, nil},
+		{"bimestre inexistente para filtro", studentID, "term999", "", true, 0, nil},
+        {"disciplina inexistente (retorna vazio)", studentID, termID, "História", false, 0, []models.Grade{}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			grades, err := VerNotas(tt.alunoID, tt.bimestreIDFilter, tt.disciplinaFilter)
+			if tt.expectError {
+				if err == nil {
+					t.Errorf("esperado erro, mas obteve nil")
+				}
+			} else {
+				if err != nil {
+					t.Fatalf("esperado sem erro, mas obteve: %v", err)
+				}
+				if len(grades) != tt.expectedCount {
+					t.Errorf("esperado %d notas, obteve %d", tt.expectedCount, len(grades))
+				}
+				if tt.expectedCount > 0 {
+                     sortedExpected := make([]models.Grade, len(tt.expectedGrades))
+                     copy(sortedExpected, tt.expectedGrades)
+                     sort.Slice(sortedExpected, func(i, j int) bool { return sortedExpected[i].Date.Before(sortedExpected[j].Date) })
+                     if !reflect.DeepEqual(grades, sortedExpected) {
+					    t.Errorf(`lista de notas não corresponde ao esperado.
+Esperado: %+v
+Obtido:   %+v`, sortedExpected, grades)
+                     }
+                } else if len(grades) != 0 {
+                    t.Errorf("esperado 0 notas, obteve %d", len(grades))
+                }
+			}
+		})
+	}
+}
+const floatEqualityThreshold = 1e-9
+
+func floatEquals(a, b float64) bool {
+    return math.Abs(a-b) < floatEqualityThreshold
+}
+func sortGradesByID(grades []models.Grade) []models.Grade {
+    sorted := make([]models.Grade, len(grades))
+    copy(sorted, grades)
+    sort.Slice(sorted, func(i, j int) bool {
+        return sorted[i].ID < sorted[j].ID
+    })
+    return sorted
+}
+
+func TestCalcularMedia(t *testing.T) {
+    studentID, termID := setupGradeTests()
+    n1Mat, _ := LancarNota(studentID, termID, "Matemática", "Prova 1", 8.0, 0.4, "10-03-2024")
+    n2Mat, _ := LancarNota(studentID, termID, "Matemática", "Trabalho 1", 7.0, 0.3, "15-03-2024")
+    n3Mat, _ := LancarNota(studentID, termID, "Matemática", "Participação", 10.0, 0.3, "20-03-2024")
+    n1Por, _ := LancarNota(studentID, termID, "Português", "Redação", 9.0, 1.0, "12-03-2024")
+    stud002ID := "stud002"
+    n1Stud002Mat, _ := LancarNota(stud002ID, termID, "Matemática", "Prova Única", 5.0, 1.0, "10-03-2024")
+
+    tests := []struct {
+        name              string
+        alunoID           string
+        bimestreID        string
+        disciplina        string
+        expectError       bool
+        expectedMedia     float64
+        expectedSomaPesos float64
+        expectedNotas     []models.Grade
+    }{
+        {"média matemática aluno1", studentID, termID, "Matemática", false, 8.3, 1.0, []models.Grade{n1Mat, n2Mat, n3Mat},},
+        {"média português aluno1", studentID, termID, "Português", false, 9.0, 1.0, []models.Grade{n1Por},},
+        {"média história aluno1 (sem notas)", studentID, termID, "História", true, 0, 0, nil,},
+        {"aluno inexistente", "stud999", termID, "Matemática", true, 0, 0, nil,},
+        {"bimestre inexistente", studentID, "term999", "Matemática", true, 0, 0, nil,},
+        {"disciplina obrigatória faltando", studentID, termID, "", true, 0, 0, nil,},
+        {"média matemática aluno2", stud002ID, termID, "Matemática", false, 5.0, 1.0, []models.Grade{n1Stud002Mat},},
+    }
+    for _, tt := range tests {
+        t.Run(tt.name, func(t *testing.T) {
+            mediaInfo, err := CalcularMedia(tt.alunoID, tt.bimestreID, tt.disciplina)
+            if tt.expectError {
+                if err == nil {
+                    t.Errorf("esperado erro, mas obteve nil. MediaInfo: %+v", mediaInfo)
+                }
+            } else {
+                if err != nil {
+                    t.Fatalf("esperado sem erro, mas obteve: %v", err)
+                }
+                if !floatEquals(mediaInfo.MediaPonderada, tt.expectedMedia) {
+                    t.Errorf("esperado média %.2f, obteve %.2f", tt.expectedMedia, mediaInfo.MediaPonderada)
+                }
+                if !floatEquals(mediaInfo.SomaPesos, tt.expectedSomaPesos) {
+                    t.Errorf("esperado soma dos pesos %.2f, obteve %.2f", tt.expectedSomaPesos, mediaInfo.SomaPesos)
+                }
+                sortedExpected := make([]models.Grade, len(tt.expectedNotas))
+                copy(sortedExpected, tt.expectedNotas)
+                sort.Slice(sortedExpected, func(i, j int) bool { return sortedExpected[i].Date.Before(sortedExpected[j].Date) })
+                if !reflect.DeepEqual(mediaInfo.NotasConsideradas, sortedExpected) {
+                   t.Errorf(`notas consideradas não correspondem ao esperado.
+Esperado: %+v
+Obtido:   %+v`, sortedExpected, mediaInfo.NotasConsideradas)
+                }
+            }
+        })
+    }
+    t.Run("soma dos pesos zero", func(t *testing.T) {
+        LimparStoreGrades()
+        sid, tid := setupGradeTests()
+        info, err := CalcularMedia(sid, tid, "DisciplinaInexistenteParaNotas")
+        if err == nil {
+             t.Errorf("Esperado erro para disciplina sem notas, mas não houve. Info: %+v", info)
+        }
+            expectedErrorMsg := fmt.Sprintf("nenhuma nota encontrada para o aluno '%s' no bimestre '%s' para a disciplina 'DisciplinaInexistenteParaNotas'. Média não pode ser calculada", sid, tid)
+        if err != nil && err.Error() != expectedErrorMsg {
+            t.Errorf("Mensagem de erro incorreta. Esperado '%s', obteve '%s'", expectedErrorMsg, err.Error())
+        }
+    })
+}
+
+// Helper para criar ponteiros para os tipos básicos para os testes de EditarNota
+func float64Ptr(v float64) *float64 { return &v }
+func stringPtr(v string) *string    { return &v }
+
+func TestEditarNota(t *testing.T) {
+    baseStudentID, baseTermID := setupGradeTests() // Renomeado para evitar conflito com tt.studentID etc.
+
+    // Nota base para ser editada em múltiplos subtestes.
+    // É crucial resetar ou recriar esta nota para cada lógica de teste independente.
+    var notaOriginalParaTeste models.Grade
+
+    // Função para (re)criar a nota original antes de certos testes
+    recreateOriginalNota := func() models.Grade {
+        LimparStoreGrades() // Limpa notas anteriores para isolar
+        MockAddStudent(baseStudentID, "Aluno Teste EditarNota") // Garante que o aluno existe
+        // Garante que o termo existe (LimparStoreTermos não é chamado aqui para não perder o baseTermID de setupGradeTests)
+        // Se baseTermID pudesse ser invalidado, precisaríamos recriá-lo também.
+        // Por agora, assumimos que baseTermID de setupGradeTests() ainda é válido.
+        nota, err := LancarNota(baseStudentID, baseTermID, "Ciências", "Projeto Vulcão", 7.5, 0.5, "20-03-2024")
+        if err != nil {
+            t.Fatalf("Falha ao recriar nota original para teste: %v", err)
+        }
+        return nota
+    }
+    notaOriginalParaTeste = recreateOriginalNota()
+
+
+    tests := []struct {
+        name            string
+        idNota          string // Será preenchido dinamicamente se usar notaOriginalParaTeste.ID
+        novoValor       *float64
+        novoPeso        *float64
+        novaDesc        *string
+        novaDataStr     *string
+        expectError     bool
+        setupFunc       func() string // Função para configurar o ID da nota para o teste
+        expectedValue   float64
+        expectedWeight  float64
+        expectedDesc    string
+        expectedDateStr string
+    }{
+        {
+            name: "editar todos os campos",
+            novoValor: float64Ptr(8.0), novoPeso: float64Ptr(0.6), novaDesc: stringPtr("Projeto Vulcão Atualizado"), novaDataStr: stringPtr("22-03-2024"),
+            expectError: false, expectedValue: 8.0, expectedWeight: 0.6, expectedDesc: "Projeto Vulcão Atualizado", expectedDateStr: "22-03-2024",
+            setupFunc: func() string { notaOriginalParaTeste = recreateOriginalNota(); return notaOriginalParaTeste.ID },
+        },
+        {
+            name: "editar apenas valor",
+            novoValor: float64Ptr(9.0), novoPeso: nil, novaDesc: nil, novaDataStr: nil,
+            expectError: false, expectedValue: 9.0, expectedWeight: 0.5, expectedDesc: "Projeto Vulcão", expectedDateStr: "20-03-2024", // Peso e Desc originais
+            setupFunc: func() string { notaOriginalParaTeste = recreateOriginalNota(); return notaOriginalParaTeste.ID },
+        },
+        {
+            name: "editar apenas peso",
+            novoValor: nil, novoPeso: float64Ptr(0.7), novaDesc: nil, novaDataStr: nil,
+            expectError: false, expectedValue: 7.5, expectedWeight: 0.7, expectedDesc: "Projeto Vulcão", expectedDateStr: "20-03-2024", // Valor e Desc originais
+            setupFunc: func() string { notaOriginalParaTeste = recreateOriginalNota(); return notaOriginalParaTeste.ID },
+        },
+        {
+            name: "editar apenas descrição",
+            novoValor: nil, novoPeso: nil, novaDesc: stringPtr("Vulcão em erupção!"), novaDataStr: nil,
+            expectError: false, expectedValue: 7.5, expectedWeight: 0.5, expectedDesc: "Vulcão em erupção!", expectedDateStr: "20-03-2024",
+            setupFunc: func() string { notaOriginalParaTeste = recreateOriginalNota(); return notaOriginalParaTeste.ID },
+        },
+        {
+            name: "editar apenas data",
+            novoValor: nil, novoPeso: nil, novaDesc: nil, novaDataStr: stringPtr("25-03-2024"),
+            expectError: false, expectedValue: 7.5, expectedWeight: 0.5, expectedDesc: "Projeto Vulcão", expectedDateStr: "25-03-2024",
+            setupFunc: func() string { notaOriginalParaTeste = recreateOriginalNota(); return notaOriginalParaTeste.ID },
+        },
+        {
+            name: "nenhuma alteração (todos nil)",
+            novoValor: nil, novoPeso: nil, novaDesc: nil, novaDataStr: nil,
+            expectError: true, // Espera erro "nenhuma alteração"
+            setupFunc: func() string { notaOriginalParaTeste = recreateOriginalNota(); return notaOriginalParaTeste.ID },
+        },
+        {
+            name: "nota não encontrada",
+            novoValor: float64Ptr(5.0), novoPeso: nil, novaDesc: nil, novaDataStr: nil,
+            expectError: true,
+            setupFunc: func() string { return "nota_errada" }, // ID que não existe
+        },
+        {
+            name: "novo valor inválido (alto)",
+            novoValor: float64Ptr(11.0), novoPeso: nil, novaDesc: nil, novaDataStr: nil,
+            expectError: true,
+            setupFunc: func() string { notaOriginalParaTeste = recreateOriginalNota(); return notaOriginalParaTeste.ID },
+        },
+        {
+            name: "novo peso inválido (zero)",
+            novoValor: nil, novoPeso: float64Ptr(0.0), novaDesc: nil, novaDataStr: nil,
+            expectError: true,
+            setupFunc: func() string { notaOriginalParaTeste = recreateOriginalNota(); return notaOriginalParaTeste.ID },
+        },
+        {
+            name: "nova data inválida",
+            novoValor: nil, novoPeso: nil, novaDesc: nil, novaDataStr: stringPtr("30-02-2024"),
+            expectError: true,
+            setupFunc: func() string { notaOriginalParaTeste = recreateOriginalNota(); return notaOriginalParaTeste.ID },
+        },
+    }
+
+    for _, tt := range tests {
+        t.Run(tt.name, func(t *testing.T) {
+            idDaNotaParaTeste := tt.setupFunc() // Configura o estado e obtém o ID da nota para este teste
+
+            editedGrade, err := EditarNota(idDaNotaParaTeste, tt.novoValor, tt.novoPeso, tt.novaDesc, tt.novaDataStr)
+
+            if tt.expectError {
+                if err == nil {
+                    t.Errorf("esperado erro, mas obteve nil")
+                }
+            } else {
+                if err != nil {
+                    t.Fatalf("esperado sem erro, mas obteve: %v", err)
+                }
+                if !floatEquals(editedGrade.Value, tt.expectedValue) {
+                    t.Errorf("esperado valor %.2f, obteve %.2f", tt.expectedValue, editedGrade.Value)
+                }
+                if !floatEquals(editedGrade.Weight, tt.expectedWeight) {
+                    t.Errorf("esperado peso %.2f, obteve %.2f", tt.expectedWeight, editedGrade.Weight)
+                }
+                if editedGrade.Description != tt.expectedDesc {
+                    t.Errorf("esperada descrição '%s', obteve '%s'", tt.expectedDesc, editedGrade.Description)
+                }
+                expectedDate, _ := time.Parse("02-01-2006", tt.expectedDateStr)
+                // Comparar apenas Y, M, D se a hora não for relevante ou não estiver sendo setada
+                if !(editedGrade.Date.Year() == expectedDate.Year() && editedGrade.Date.Month() == expectedDate.Month() && editedGrade.Date.Day() == expectedDate.Day()) {
+                     t.Errorf("esperada data '%s', obteve '%s'", tt.expectedDateStr, editedGrade.Date.Format("02-01-2006"))
+                }
+                storedGrade, _ := gradesStore[idDaNotaParaTeste]
+                if !reflect.DeepEqual(storedGrade, editedGrade) {
+                    t.Errorf("Nota no store não corresponde à nota editada retornada.")
+                }
+            }
+        })
+    }
+}
+
+func TestExcluirNota(t *testing.T) {
+    studentID, termID := setupGradeTests()
+    notaParaExcluir, _ := LancarNota(studentID, termID, "Geografia", "Mapa Mundi", 9.0, 1.0, "01-04-2024")
+    outraNota, _ := LancarNota(studentID, termID, "Geografia", "Capitais", 8.0, 1.0, "02-04-2024")
+
+    t.Run("excluir nota existente", func(t *testing.T) {
+        err := ExcluirNota(notaParaExcluir.ID)
+        if err != nil {
+            t.Fatalf("Erro ao excluir nota: %v", err)
+        }
+        _, found := gradesStore[notaParaExcluir.ID]
+        if found {
+            t.Errorf("Nota '%s' ainda encontrada no map gradesStore após exclusão", notaParaExcluir.ID)
+        }
+        for _, g := range gradeList {
+            if g.ID == notaParaExcluir.ID {
+                t.Errorf("Nota '%s' ainda encontrada na slice gradeList após exclusão", notaParaExcluir.ID)
+                break
+            }
+        }
+    })
+
+    t.Run("verificar se outra nota permanece", func(t *testing.T) {
+        _, found := gradesStore[outraNota.ID]
+        if !found {
+            t.Errorf("Outra nota '%s' foi removida indevidamente", outraNota.ID)
+        }
+        foundInList := false
+        for _, g := range gradeList {
+            if g.ID == outraNota.ID {
+                foundInList = true
+                break
+            }
+        }
+        if !foundInList {
+             t.Errorf("Outra nota '%s' não encontrada na gradeList", outraNota.ID)
+        }
+    })
+
+    t.Run("excluir nota inexistente", func(t *testing.T) {
+        err := ExcluirNota("nota_fantasma")
+        if err == nil {
+            t.Error("Esperado erro ao excluir nota inexistente, mas não ocorreu")
+        }
+    })
+}
