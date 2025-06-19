@@ -7,8 +7,9 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/spf13/cobra"
-	"vickgenda/internal/ids"
-	"vickgenda/internal/tui"
+	"vickgenda-cli/internal/ids"
+	"vickgenda-cli/internal/squad4" // Import for DashboardCmd
+	"vickgenda-cli/internal/tui"
 )
 
 // model represents the main state of the Bubble Tea TUI application.
@@ -59,7 +60,6 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 
-	var cmd tea.Cmd
 	var cmds []tea.Cmd
 
 	switch msg := msg.(type) {
@@ -192,10 +192,16 @@ func Execute() error {
 	return rootCmd.Execute()
 }
 
+// GetMainRootCmd returns the main root command for the application.
+// This allows other packages (like cmd) to access and add commands to it.
+func GetMainRootCmd() *cobra.Command {
+	return rootCmd
+}
+
 func main() {
 	// Add subcommands to the root command.
-	// resolveCmd is an example of a subcommand.
 	rootCmd.AddCommand(resolveCmd)
+	rootCmd.AddCommand(squad4.DashboardCmd) // Add DashboardCmd
 
 	// Cobra's Execute() handles command parsing, execution, and error printing.
 	//  - If a registered subcommand (like "resolve") is called, its RunE/Run function is executed.
