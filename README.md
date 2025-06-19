@@ -1,0 +1,2 @@
+# vickgenda
+Uma agenda CLI.
