@@ -19,28 +19,29 @@ import (
 var db *sql.DB
 
 // InitDB initializes the database connection and creates tables if they don't exist.
-func InitDB() error {
-	configDir, err := os.UserConfigDir()
-	if err != nil {
-		return fmt.Errorf("failed to get user config directory: %w", err)
-	}
-
-	dbDir := filepath.Join(configDir, "vickgenda")
-	if _, err := os.Stat(dbDir); os.IsNotExist(err) {
-		if err := os.MkdirAll(dbDir, 0755); err != nil {
-			return fmt.Errorf("failed to create database directory %s: %w", dbDir, err)
+func InitDB(dbPath string) error { // Modified to accept dbPath
+	if dbPath == "" { // If dbPath is empty, use the default production path
+		configDir, err := os.UserConfigDir()
+		if err != nil {
+			return fmt.Errorf("failed to get user config directory: %w", err)
 		}
-	}
 
-	dbPath := filepath.Join(dbDir, "vickgenda.db")
+		dbDir := filepath.Join(configDir, "vickgenda")
+		if _, err := os.Stat(dbDir); os.IsNotExist(err) {
+			if err := os.MkdirAll(dbDir, 0755); err != nil {
+				return fmt.Errorf("failed to create database directory %s: %w", dbDir, err)
+			}
+		}
+		dbPath = filepath.Join(dbDir, "vickgenda.db")
+	}
 
 	var sqlErr error
-	db, sqlErr = sql.Open("sqlite3", dbPath)
+	db, sqlErr = sql.Open("sqlite3", dbPath) // Use the determined dbPath
 	if sqlErr != nil {
 		return fmt.Errorf("failed to open database at %s: %w", dbPath, sqlErr)
 	}
 
-	if err = db.Ping(); err != nil {
+	if err := db.Ping(); err != nil { // Use := to declare err locally
 		return fmt.Errorf("failed to ping database at %s: %w", dbPath, err)
 	}
 
