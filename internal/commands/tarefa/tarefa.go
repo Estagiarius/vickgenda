@@ -8,25 +8,32 @@ import (
 	"sync"
 	"time"
 
-	"vickgenda/internal/models" // Assuming this is the correct path to models
+	"vickgenda/internal/models"
 )
 
 // tarefasStore é o nosso banco de dados em memória para tarefas.
+// Não é exportado, pois o acesso é gerenciado pelas funções públicas deste pacote.
 var (
 	tarefasStore = make(map[string]models.Task)
 	nextTaskID   = 1
-	mu           sync.Mutex // Mutex para proteger o acesso concorrente ao store e nextTaskID
+	mu           sync.Mutex // mu protege o acesso concorrente ao tarefasStore e nextTaskID.
 )
 
-// generateNewTaskID gera um ID único para uma nova tarefa.
+// generateNewTaskID gera um ID único para uma nova tarefa de forma sequencial.
+// Esta função não é exportada pois é um detalhe de implementação.
+// Exemplo: "task-1", "task-2".
 func generateNewTaskID() string {
 	id := fmt.Sprintf("task-%d", nextTaskID)
 	nextTaskID++
 	return id
 }
 
-// CriarTarefa adiciona uma nova tarefa.
-// Args: description, dueDateStr (YYYY-MM-DD), priority, tags (comma-separated string)
+// CriarTarefa adiciona uma nova tarefa ao sistema de gerenciamento de tarefas.
+// Requer uma descrição não vazia.
+// dueDateStr deve estar no formato "YYYY-MM-DD"; se vazio, a tarefa não tem prazo.
+// A prioridade, se não especificada (<=0), assume o valor padrão 2 (Média).
+// tagsStr é uma string de tags separadas por vírgula (ex: "importante,trabalho").
+// Retorna a tarefa criada e armazenada ou um erro se a validação dos campos falhar.
 func CriarTarefa(description string, dueDateStr string, priority int, tagsStr string) (models.Task, error) {
 	mu.Lock()
 	defer mu.Unlock()
@@ -62,7 +69,7 @@ func CriarTarefa(description string, dueDateStr string, priority int, tagsStr st
 		Description: description,
 		DueDate:     dueDate,
 		Priority:    priority,
-		Status:      "Pendente", // Status inicial
+		Status:      "Pendente", // Status inicial padrão para novas tarefas.
 		Tags:        tags,
 		CreatedAt:   now,
 		UpdatedAt:   now,
@@ -72,8 +79,15 @@ func CriarTarefa(description string, dueDateStr string, priority int, tagsStr st
 	return novaTarefa, nil
 }
 
-// ListarTarefas retorna uma lista de tarefas, com filtros e ordenação.
-// Args: statusFilter, priorityFilter, dueDateFilter (YYYY-MM-DD), tagFilter, sortBy, sortOrder (asc/desc)
+// ListarTarefas retorna uma lista de tarefas com base nos filtros e ordenação fornecidos.
+// Todos os parâmetros de filtro são opcionais.
+// statusFilter: filtra tarefas pelo status (ex: "Pendente", "Concluída"). Case-insensitive.
+// priorityFilter: filtra tarefas pela prioridade (ex: 1, 2, 3).
+// dueDateFilterStr: filtra tarefas com prazo até a data especificada ("YYYY-MM-DD").
+// tagFilter: filtra tarefas que contenham a tag especificada. Case-insensitive.
+// sortBy: campo para ordenação ("descricao", "prazo", "prioridade", "status", "CreatedAt"). Padrão: "CreatedAt".
+// sortOrder: ordem de classificação ("asc" para ascendente, "desc" para descendente). Padrão: "asc".
+// Retorna uma lista de tarefas ou um erro se, por exemplo, o formato de data do filtro for inválido.
 func ListarTarefas(statusFilter string, priorityFilter int, dueDateFilterStr string, tagFilter string, sortBy string, sortOrder string) ([]models.Task, error) {
 	mu.Lock()
 	defer mu.Unlock()
@@ -151,8 +165,12 @@ func ListarTarefas(statusFilter string, priorityFilter int, dueDateFilterStr str
 	return result, nil
 }
 
-// EditarTarefa atualiza uma tarefa existente.
-// Pelo menos um dos campos opcionais (novaDesc, novoPrazoStr, etc.) deve ser fornecido.
+// EditarTarefa atualiza os campos de uma tarefa existente, identificada pelo seu ID.
+// Pelo menos um dos campos a serem alterados (novaDesc, novoPrazoStr, etc.) deve ser fornecido.
+// Se um campo de string opcional for vazio, ele não será alterado.
+// Se novaPrioridade for 0 ou negativo, não será alterada.
+// novasTagsStr substitui completamente as tags existentes; se vazia, as tags são mantidas ou limpas dependendo da interpretação desejada (aqui, string vazia de tags = sem tags).
+// Retorna a tarefa atualizada ou um erro se a tarefa não for encontrada, nenhuma alteração for especificada, ou houver erro de formato.
 func EditarTarefa(id string, novaDesc, novoPrazoStr string, novaPrioridade int, novoStatus string, novasTagsStr string) (models.Task, error) {
 	mu.Lock()
 	defer mu.Unlock()
@@ -184,10 +202,11 @@ func EditarTarefa(id string, novaDesc, novoPrazoStr string, novaPrioridade int, 
 		tarefa.Status = novoStatus
 		updated = true
 	}
-	if novasTagsStr != "" {
+	if novasTagsStr != "" { // Permitir limpar tags passando uma string que resulte em slice vazio, ex: "" ou " "
 		var tags []string
-		if strings.TrimSpace(novasTagsStr) != "" {
-			tags = strings.Split(novasTagsStr, ",")
+		trimmedTagsStr := strings.TrimSpace(novasTagsStr)
+		if trimmedTagsStr != "" { // Só faz split se não for vazia após trim
+			tags = strings.Split(trimmedTagsStr, ",")
 			for i, tag := range tags {
 				tags[i] = strings.TrimSpace(tag)
 			}
@@ -195,6 +214,7 @@ func EditarTarefa(id string, novaDesc, novoPrazoStr string, novaPrioridade int, 
 		tarefa.Tags = tags // Substitui as tags existentes
 		updated = true
 	}
+
 
 	if !updated {
 		return models.Task{}, errors.New("nenhuma alteração especificada")
@@ -205,7 +225,8 @@ func EditarTarefa(id string, novaDesc, novoPrazoStr string, novaPrioridade int, 
 	return tarefa, nil
 }
 
-// ConcluirTarefa marca uma tarefa como concluída.
+// ConcluirTarefa marca uma tarefa especificada pelo ID como "Concluída".
+// Retorna a tarefa atualizada ou um erro se a tarefa não for encontrada ou já estiver concluída.
 func ConcluirTarefa(id string) (models.Task, error) {
 	mu.Lock()
 	defer mu.Unlock()
@@ -216,7 +237,7 @@ func ConcluirTarefa(id string) (models.Task, error) {
 	}
 
 	if tarefa.Status == "Concluída" {
-		return tarefa, errors.New("tarefa já está concluída") // Ou apenas retornar a tarefa sem erro
+		return tarefa, errors.New("tarefa já está concluída")
 	}
 
 	tarefa.Status = "Concluída"
@@ -225,7 +246,8 @@ func ConcluirTarefa(id string) (models.Task, error) {
 	return tarefa, nil
 }
 
-// RemoverTarefa remove uma tarefa.
+// RemoverTarefa remove uma tarefa do sistema, identificada pelo seu ID.
+// Retorna um erro se a tarefa não for encontrada.
 func RemoverTarefa(id string) error {
 	mu.Lock()
 	defer mu.Unlock()
@@ -239,23 +261,61 @@ func RemoverTarefa(id string) error {
 	return nil
 }
 
-// GetTarefaByID é uma função auxiliar para buscar uma tarefa (poderia ser usada por outros pacotes ou testes)
+// GetTarefaByID busca e retorna uma tarefa específica pelo seu ID.
+// É uma função auxiliar que pode ser usada por outros pacotes ou para testes.
+// Retorna a tarefa encontrada ou um erro se nenhuma tarefa com o ID fornecido existir.
 func GetTarefaByID(id string) (models.Task, error) {
-    mu.Lock()
-    defer mu.Unlock()
+	mu.Lock()
+	defer mu.Unlock()
 
-    tarefa, existe := tarefasStore[id]
-    if !existe {
-        return models.Task{}, fmt.Errorf("tarefa com ID '%s' não encontrada", id)
-    }
-    return tarefa, nil
+	tarefa, existe := tarefasStore[id]
+	if !existe {
+		return models.Task{}, fmt.Errorf("tarefa com ID '%s' não encontrada", id)
+	}
+	return tarefa, nil
 }
 
-// LimparTarefasStore é uma função auxiliar para testes, para limpar o store.
+// LimparTarefasStore remove todas as tarefas do armazenamento em memória.
+// Esta função é primariamente destinada a ser usada em testes para garantir um estado limpo.
 func LimparTarefasStore() {
 	mu.Lock()
 	defer mu.Unlock()
 	tarefasStore = make(map[string]models.Task)
 	nextTaskID = 1
+}
+
+// ContarTarefas retorna a contagem de tarefas com base nos filtros fornecidos.
+// Filtros são opcionais. Se um filtro não for desejado, passe uma string vazia ou 0.
+// statusFilter: filtra tarefas pelo status. Case-insensitive.
+// priorityFilter: filtra tarefas pela prioridade.
+// tagFilter: filtra tarefas que contenham a tag especificada. Case-insensitive.
+// Retorna o número de tarefas que correspondem aos critérios ou um erro (atualmente sempre nil).
+func ContarTarefas(statusFilter string, priorityFilter int, tagFilter string) (int, error) {
+	mu.Lock()
+	defer mu.Unlock()
+
+	count := 0
+	for _, tarefa := range tarefasStore {
+		if statusFilter != "" && !strings.EqualFold(tarefa.Status, statusFilter) {
+			continue
+		}
+		if priorityFilter > 0 && tarefa.Priority != priorityFilter {
+			continue
+		}
+		if tagFilter != "" {
+			foundTag := false
+			for _, t := range tarefa.Tags {
+				if strings.EqualFold(t, tagFilter) {
+					foundTag = true
+					break
+				}
+			}
+			if !foundTag {
+				continue
+			}
+		}
+		count++
+	}
+	return count, nil
 }
 ```

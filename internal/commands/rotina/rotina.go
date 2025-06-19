@@ -8,31 +8,33 @@ import (
 	"sync"
 	"time"
 
-	"vickgenda/internal/models" // Assuming this is the correct path to models
-	// Task creation will eventually be needed for task generation,
-	// but for model management, we only need the models.Routine struct.
-	// "vickgenda/internal/commands/tarefa"
+	"vickgenda/internal/models"
+	"vickgenda/internal/commands/tarefa"
 )
 
+// dateTimeLayoutRotina define o formato para parsing de data/hora para rotinas.
 const dateTimeLayoutRotina = "2006-01-02 15:04"
 
-// rotinasStore é o nosso banco de dados em memória para modelos de rotina.
+// rotinasStore é o banco de dados em memória para modelos de rotina.
+// Não exportado; acesso gerenciado pelas funções públicas.
 var (
 	rotinasStore = make(map[string]models.Routine)
 	nextRotinaID = 1
-	muRotinas    sync.Mutex // Mutex para proteger o acesso concorrente
+	muRotinas    sync.Mutex // muRotinas protege o acesso concorrente ao rotinasStore e nextRotinaID.
 )
 
 // generateNewRotinaID gera um ID único para um novo modelo de rotina.
+// Não exportada, detalhe de implementação. Ex: "routine-1".
 func generateNewRotinaID() string {
 	id := fmt.Sprintf("routine-%d", nextRotinaID)
 	nextRotinaID++
 	return id
 }
 
-// isValidFrequency valida o formato da frequência.
-// Exemplos válidos: "diaria", "semanal:seg,qua,sex", "mensal:15", "manual"
-func isValidFrequency(freq string) bool {
+// isValidFrequencyInternal valida o formato da string de frequência.
+// Esta é uma função auxiliar interna.
+// Exemplos válidos: "diaria", "semanal:seg,qua,sex", "mensal:15", "manual".
+func isValidFrequencyInternal(freq string) bool {
 	lowerFreq := strings.ToLower(freq)
 	if lowerFreq == "diaria" || lowerFreq == "manual" {
 		return true
@@ -40,17 +42,24 @@ func isValidFrequency(freq string) bool {
 	parts := strings.Split(lowerFreq, ":")
 	if len(parts) == 2 {
 		freqType := parts[0]
-		// freqValue := parts[1] // Value validation can be more complex
-		if freqType == "semanal" || freqType == "mensal" {
-			// Basic check, more detailed validation (e.g., valid days/dates) can be added.
-			return len(parts[1]) > 0
+		freqValue := parts[1]
+		if (freqType == "semanal" || freqType == "mensal") && len(freqValue) > 0 {
+			// Validação mais detalhada (dias válidos, formato do dia do mês) pode ser adicionada aqui.
+			return true
 		}
 	}
 	return false
 }
 
-// CriarModeloRotina adiciona um novo modelo de rotina.
-// Args: nome, frequencia, descTarefa, prioridadeTarefa, tagsTarefaStr (comma-separated), proximaExecucaoStr (YYYY-MM-DD HH:MM)
+// CriarModeloRotina adiciona um novo modelo de rotina ao sistema.
+// nome: Nome descritivo para o modelo.
+// frequencia: Define a recorrência ("diaria", "semanal:dias", "mensal:dia_do_mes", "manual").
+// descTarefa: Modelo para a descrição das tarefas geradas (pode usar placeholders como {nome_rotina}, {data}).
+// prioridadeTarefa: Prioridade padrão para tarefas geradas (1-Alta, 2-Média, 3-Baixa). Padrão 2 se <= 0.
+// tagsTarefaStr: String de tags separadas por vírgula para as tarefas geradas.
+// proximaExecucaoStr: Data/hora ("YYYY-MM-DD HH:MM") da primeira execução.
+//                     Se frequência não for "manual" e este campo for vazio, NextRunTime é time.Now().
+// Retorna o modelo de rotina criado ou um erro de validação.
 func CriarModeloRotina(nome, frequencia, descTarefa string, prioridadeTarefa int, tagsTarefaStr string, proximaExecucaoStr string) (models.Routine, error) {
 	muRotinas.Lock()
 	defer muRotinas.Unlock()
@@ -58,7 +67,7 @@ func CriarModeloRotina(nome, frequencia, descTarefa string, prioridadeTarefa int
 	if strings.TrimSpace(nome) == "" {
 		return models.Routine{}, errors.New("o nome do modelo de rotina é obrigatório")
 	}
-	if !isValidFrequency(frequencia) {
+	if !isValidFrequencyInternal(frequencia) { // Alterado para função interna
 		return models.Routine{}, errors.New("formato de frequência inválido. Exemplos: 'diaria', 'semanal:seg,qua', 'mensal:1', 'manual'")
 	}
 	if strings.TrimSpace(descTarefa) == "" {
@@ -67,14 +76,12 @@ func CriarModeloRotina(nome, frequencia, descTarefa string, prioridadeTarefa int
 
 	var proximaExecucao time.Time
 	var err error
+	// Rotinas manuais não têm NextRunTime por padrão.
 	if strings.ToLower(frequencia) != "manual" {
 		if proximaExecucaoStr == "" {
-			// For automatic routines, proximaExecucao can be set to a default (e.g., now) or be required.
-			// As per spec: "Se não especificado para rotinas automáticas, pode ser calculado..."
-			// For this step, we'll make it simpler: if not manual, it can be zero, implying it needs processing.
-			// Or, let's make it required for non-manual for now to ensure it's always there if needed by a processor.
-			// Let's default it to time.Now() if not provided and not manual, to be adjusted by a scheduler later.
-			proximaExecucao = time.Now() // Placeholder, scheduler should refine this.
+			// Para rotinas automáticas, se não especificado, NextRunTime é agora.
+			// Um sistema de agendamento poderia refinar isso com base na frequência.
+			proximaExecucao = time.Now()
 		} else {
 			proximaExecucao, err = time.Parse(dateTimeLayoutRotina, proximaExecucaoStr)
 			if err != nil {
@@ -100,7 +107,7 @@ func CriarModeloRotina(nome, frequencia, descTarefa string, prioridadeTarefa int
 	novoModelo := models.Routine{
 		ID:                generateNewRotinaID(),
 		Name:              nome,
-		Description:       "", // Description for the routine model itself, not the task. Can be added.
+		Description:       "", // Campo de descrição do modelo de rotina, pode ser adicionado como parâmetro.
 		Frequency:         frequencia,
 		TaskDescription:   descTarefa,
 		TaskPriority:      prioridadeTarefa,
@@ -114,8 +121,10 @@ func CriarModeloRotina(nome, frequencia, descTarefa string, prioridadeTarefa int
 	return novoModelo, nil
 }
 
-// ListarModelosRotina retorna todos os modelos de rotina.
-// Args: sortBy, sortOrder
+// ListarModelosRotina retorna uma lista de todos os modelos de rotina existentes.
+// sortBy: Campo para ordenação ("nome", "frequencia", "proxima_execucao"). Padrão: "nome".
+// sortOrder: Ordem ("asc", "desc"). Padrão: "asc".
+// Retorna uma lista de modelos ou um erro (atualmente sempre nil).
 func ListarModelosRotina(sortBy string, sortOrder string) ([]models.Routine, error) {
 	muRotinas.Lock()
 	defer muRotinas.Unlock()
@@ -140,6 +149,9 @@ func ListarModelosRotina(sortBy string, sortOrder string) ([]models.Routine, err
 		case "frequencia":
 			less = r1.Frequency < r2.Frequency
 		case "proxima_execucao":
+			// Rotinas com NextRunTime zero (ex: manuais) vêm depois.
+			if r1.NextRunTime.IsZero() { return false }
+			if r2.NextRunTime.IsZero() { return true }
 			less = r1.NextRunTime.Before(r2.NextRunTime)
 		default: // "nome" ou qualquer outro
 			less = r1.Name < r2.Name
@@ -154,6 +166,12 @@ func ListarModelosRotina(sortBy string, sortOrder string) ([]models.Routine, err
 }
 
 // EditarModeloRotina atualiza um modelo de rotina existente.
+// id: ID do modelo a ser editado.
+// Os demais parâmetros são os novos valores; se vazios ou zero (para prioridade), não são alterados,
+// exceto tagsTarefaStr que substitui as tags existentes (string vazia = sem tags).
+// novaProxExecStr: Se fornecida e a rotina não for manual, atualiza NextRunTime.
+//                  Se a frequência for alterada para "manual", NextRunTime é zerado.
+// Retorna o modelo atualizado ou um erro se não encontrado, validação falhar, ou nenhuma alteração for feita.
 func EditarModeloRotina(id, novoNome, novaFreq, novaDescTarefa string, novaPrioTarefa int, novasTagsTarefaStr, novaProxExecStr string) (models.Routine, error) {
 	muRotinas.Lock()
 	defer muRotinas.Unlock()
@@ -169,20 +187,18 @@ func EditarModeloRotina(id, novoNome, novaFreq, novaDescTarefa string, novaPrioT
 		updated = true
 	}
 	if novaFreq != "" {
-		if !isValidFrequency(novaFreq) {
+		if !isValidFrequencyInternal(novaFreq) { // Alterado para função interna
 			return models.Routine{}, errors.New("formato de frequência inválido")
 		}
 		modelo.Frequency = novaFreq
 		updated = true
-		// If frequency changes to/from manual, NextRunTime might need adjustment.
-		// For now, if it becomes non-manual and NextRunTime is zero, it might need to be set.
-        if strings.ToLower(novaFreq) != "manual" && novaProxExecStr == "" && modelo.NextRunTime.IsZero() {
-            // If changing to an automatic type and no new next run time is provided,
-            // and current is zero, set it to now (to be processed by scheduler)
-             modelo.NextRunTime = time.Now()
-        } else if strings.ToLower(novaFreq) == "manual" {
-            modelo.NextRunTime = time.Time{} // Manual routines don't have a next run time
-        }
+		// Ajustar NextRunTime se a frequência mudar para/de manual.
+		if strings.ToLower(novaFreq) == "manual" {
+			modelo.NextRunTime = time.Time{} // Zera para manual
+		} else if modelo.NextRunTime.IsZero() && novaProxExecStr == "" {
+			// Se tornou automática, NextRunTime era zero e não foi fornecido novo, default para Now.
+			modelo.NextRunTime = time.Now()
+		}
 	}
 	if novaDescTarefa != "" {
 		modelo.TaskDescription = novaDescTarefa
@@ -192,10 +208,11 @@ func EditarModeloRotina(id, novoNome, novaFreq, novaDescTarefa string, novaPrioT
 		modelo.TaskPriority = novaPrioTarefa
 		updated = true
 	}
-	if novasTagsTarefaStr != "" {
+	if novasTagsTarefaStr != "" { // Permitir limpar tags
 		var tags []string
-		if strings.TrimSpace(novasTagsTarefaStr) != "" {
-			tags = strings.Split(novasTagsTarefaStr, ",")
+		trimmedTags := strings.TrimSpace(novasTagsTarefaStr)
+		if trimmedTags != "" {
+			tags = strings.Split(trimmedTags, ",")
 			for i, tag := range tags {
 				tags[i] = strings.TrimSpace(tag)
 			}
@@ -203,8 +220,9 @@ func EditarModeloRotina(id, novoNome, novaFreq, novaDescTarefa string, novaPrioT
 		modelo.TaskTags = tags
 		updated = true
 	}
+
     if novaProxExecStr != "" {
-        if strings.ToLower(modelo.Frequency) == "manual" && novaProxExecStr != "" {
+        if strings.ToLower(modelo.Frequency) == "manual" {
             return models.Routine{}, errors.New("não é possível definir próxima execução para rotina manual")
         }
         newNextRun, err := time.Parse(dateTimeLayoutRotina, novaProxExecStr)
@@ -214,11 +232,10 @@ func EditarModeloRotina(id, novoNome, novaFreq, novaDescTarefa string, novaPrioT
         modelo.NextRunTime = newNextRun
         updated = true
     } else if strings.ToLower(modelo.Frequency) == "manual" {
-		// If no new next run time is provided, and the frequency is manual (or changed to manual)
-		// ensure NextRunTime is zeroed out.
+		// Se frequência é manual (ou mudou para manual) e não foi fornecida nova data, garante NextRunTime zero.
 		if !modelo.NextRunTime.IsZero() {
 			modelo.NextRunTime = time.Time{}
-			updated = true
+			updated = true // Considera uma atualização se NextRunTime foi zerado.
 		}
 	}
 
@@ -232,7 +249,9 @@ func EditarModeloRotina(id, novoNome, novaFreq, novaDescTarefa string, novaPrioT
 	return modelo, nil
 }
 
-// RemoverModeloRotina remove um modelo de rotina.
+// RemoverModeloRotina remove um modelo de rotina do sistema.
+// id: ID do modelo a ser removido.
+// Retorna um erro se o modelo não for encontrado.
 func RemoverModeloRotina(id string) error {
 	muRotinas.Lock()
 	defer muRotinas.Unlock()
@@ -246,7 +265,9 @@ func RemoverModeloRotina(id string) error {
 	return nil
 }
 
-// GetModeloRotinaByID helper
+// GetModeloRotinaByID busca e retorna um modelo de rotina pelo seu ID.
+// Função auxiliar, útil para testes ou acesso por outros pacotes.
+// Retorna o modelo encontrado ou um erro se não existir.
 func GetModeloRotinaByID(id string) (models.Routine, error) {
     muRotinas.Lock()
     defer muRotinas.Unlock()
@@ -257,7 +278,8 @@ func GetModeloRotinaByID(id string) (models.Routine, error) {
     return modelo, nil
 }
 
-// LimparRotinasStore helper for tests
+// LimparRotinasStore remove todos os modelos de rotina do armazenamento.
+// Destinada primariamente para uso em testes.
 func LimparRotinasStore() {
 	muRotinas.Lock()
 	defer muRotinas.Unlock()
@@ -265,12 +287,17 @@ func LimparRotinasStore() {
 	nextRotinaID = 1
 }
 
-// GerarTarefasFromModelo gera tarefas a partir de um modelo de rotina específico.
-// dataBaseStr é opcional (formato YYYY-MM-DD), usada para substituir placeholders como {data}.
+// GerarTarefasFromModelo cria tarefas com base em um modelo de rotina específico.
+// modeloID: ID do modelo de rotina a ser usado.
+// dataBaseStr: Data base opcional ("YYYY-MM-DD") para substituir placeholders como {data}.
+//              Se vazia, usa a data atual.
+// Retorna uma lista de tarefas criadas (atualmente sempre uma) ou um erro.
+// A lógica de atualização de NextRunTime do modelo é simplificada e comentada,
+// pois um agendador mais complexo seria necessário para o cálculo correto.
 func GerarTarefasFromModelo(modeloID string, dataBaseStr string) ([]models.Task, error) {
-	muRotinas.Lock() // Lock for reading the routine model
+	muRotinas.Lock() // Lock para ler o modelo de rotina.
 	modelo, existe := rotinasStore[modeloID]
-	muRotinas.Unlock() // Unlock immediately after reading
+	muRotinas.Unlock() // Desbloqueia imediatamente após a leitura.
 
 	if !existe {
 		return nil, fmt.Errorf("modelo de rotina com ID '%s' não encontrado", modeloID)
@@ -287,43 +314,26 @@ func GerarTarefasFromModelo(modeloID string, dataBaseStr string) ([]models.Task,
 		dataBase = time.Now()
 	}
 
-	// Substituir placeholders na descrição da tarefa
+	// Substituir placeholders na descrição da tarefa.
 	taskDesc := modelo.TaskDescription
 	taskDesc = strings.ReplaceAll(taskDesc, "{data}", dataBase.Format("2006-01-02"))
 	taskDesc = strings.ReplaceAll(taskDesc, "{nome_rotina}", modelo.Name)
-	// Adicionar mais placeholders conforme necessário
+	// Outros placeholders podem ser adicionados aqui.
 
-	// Gerar a tarefa usando a função CriarTarefa do pacote tarefa
-	// Tarefas geradas por rotina não terão um DueDate específico, a menos que
-	// o modelo de rotina seja estendido para suportar um offset de prazo.
-	// Tags são convertidas de []string para string separada por vírgulas.
 	tagsStr := strings.Join(modelo.TaskTags, ",")
 
-	// CriarTarefa é uma função que pode retornar erro, precisamos lidar com isso.
-	// E como CriarTarefa já lida com sua própria concorrência (travando tarefasStore),
-	// não precisamos de um lock global aqui para a criação de tarefa em si.
+	// CriarTarefa lida com sua própria concorrência.
 	novaTarefa, err := tarefa.CriarTarefa(taskDesc, "", modelo.TaskPriority, tagsStr)
 	if err != nil {
 		return nil, fmt.Errorf("falha ao gerar tarefa a partir do modelo '%s': %w", modeloID, err)
 	}
 
-	// Lógica para atualizar NextRunTime da rotina (simplificado por agora)
-	// A atualização real de NextRunTime exigiria uma lógica de agendamento mais complexa
-	// baseada na frequência da rotina.
-	// Por exemplo, se a rotina for 'diaria', NextRunTime seria +24h.
-	// Se for 'semanal:seg', seria a próxima segunda-feira.
-	// Esta parte é complexa e pode ser responsabilidade de um "scheduler" dedicado.
-	// Por enquanto, apenas demonstramos que a tarefa foi gerada.
-	// Se quisermos atualizar NextRunTime, precisamos de um Lock novamente.
+	// A lógica de atualização de NextRunTime está comentada pois requer um agendador.
 	/*
 	if strings.ToLower(modelo.Frequency) != "manual" {
 		muRotinas.Lock()
-		// Aqui viria a lógica de cálculo do próximo NextRunTime.
-		// Exemplo muito simples: adicionar 24h se for diária.
-		// if strings.ToLower(modelo.Frequency) == "diaria" {
-		//	 modelo.NextRunTime = modelo.NextRunTime.Add(24 * time.Hour)
-		// }
-		// rotinasStore[modeloID] = modelo // Salvar a atualização
+		// Lógica de cálculo do próximo NextRunTime (ex: modelo.NextRunTime.Add(24 * time.Hour))
+		// rotinasStore[modeloID] = modelo // Salvar atualização
 		muRotinas.Unlock()
 	}
 	*/
