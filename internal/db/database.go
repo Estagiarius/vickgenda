@@ -35,6 +35,9 @@ func InitDB(dbPath string) error { // Modified to accept dbPath
 		dbPath = filepath.Join(dbDir, "vickgenda.db")
 	}
 
+	// Log the database path being used
+	fmt.Printf("Using database at: %s\n", dbPath) // Or use a proper logger
+
 	var sqlErr error
 	db, sqlErr = sql.Open("sqlite3", dbPath) // Use the determined dbPath
 	if sqlErr != nil {

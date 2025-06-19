@@ -18,24 +18,6 @@ var (
 				PaddingRight(1)
 )
 
-// lipgloss styles for different parts of the status bar.
-// These styles are used to provide a consistent look and feel.
-var (
-	// statusBarAppNameStyle is used for displaying the application name.
-	statusBarAppNameStyle = lipgloss.NewStyle().Bold(true)
-	// statusBarVersionStyle is used for displaying the application version.
-	statusBarVersionStyle = lipgloss.NewStyle().Faint(true)
-	// statusBarContextStyle is used for displaying the current operational context (e.g., "Main", "Editing Task").
-	statusBarContextStyle = lipgloss.NewStyle().Italic(true)
-	// statusBarStyle is the overall style for the status bar, including background and foreground colors.
-	// It uses lipgloss to define a distinct visual appearance.
-	statusBarStyle = lipgloss.NewStyle().
-			Background(lipgloss.Color("235")). // Dark gray background, common for status bars.
-			Foreground(lipgloss.Color("250")). // Light gray foreground for good contrast.
-			PaddingLeft(1).
-			PaddingRight(1)
-)
-
 // StatusBarModel represents the state and behavior of the application's status bar.
 // It's a Bubble Tea model component designed to be embedded in parent models.
 type StatusBarModel struct {
