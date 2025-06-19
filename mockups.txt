@@ -1,0 +1,69 @@
+==================================================
+                        PAINEL PRINCIPAL
+==================================================
+Bom dia, Professor(a) [Nome do Usuário]!
+
+HOJE (20/06/2025):
+--------------------------------------------------
+[08:00] Aula: Matemática - Turma 7B - Frações
+[10:00] Reunião: Coordenação Pedagógica
+[14:00] Corrigir: Provas - História - Turma 8A
+
+TAREFAS PENDENTES:
+--------------------------------------------------
+[ ] Preparar aula de Ciências (Amanhã)
+[ ] Lançar notas Bimestre 1 - Turma 7B (Até 25/06)
+[ ] Organizar material para feira de ciências
+
+FOCO DO DIA:
+--------------------------------------------------
+"Concentre-se em uma tarefa de cada vez."
+
+--------------------------------------------------
+Use 'ajuda' para ver todos os comandos.
+
+==================================================
+                            LEMBRETES
+==================================================
+Comando: relembrar adicionar "Comprar canetas" amanha 10:00
+Comando: relembrar listar
+
+Output para `relembrar listar`:
+ID  LEMBRETE                DATA        HORA
+--- ----------------------- ----------- --------
+1   Comprar canetas         21/06/2025  10:00
+2   Ligar para gráfica      24/06/2025  15:30
+3   Confirmar reunião       HOJE        17:00
+
+Notificações (conceitual):
+Quando um lembrete é devido, pode aparecer no painel principal ou via um comando dedicado.
+
+==================================================
+                            MODO FOCO
+==================================================
+Comando: foco iniciar 25m "Escrever relatório da turma 9A"
+
+Screen durante foco modo:
+==================================================
+                            MODO FOCO
+==================================================
+
+                TEMPO RESTANTE: 23:15
+
+                TAREFA: Escrever relatório da turma 9A
+
+--------------------------------------------------
+Mantenha o foco! Pressione CTRL+C para sair.
+
+Screen após foco sessão ends:
+==================================================
+                            MODO FOCO
+==================================================
+
+                SESSÃO CONCLUÍDA!
+
+                TAREFA: Escrever relatório da turma 9A
+                DURAÇÃO: 25 minutos
+
+--------------------------------------------------
+Bom trabalho! Deseja iniciar outra sessão? (s/N)
