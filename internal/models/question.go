@@ -39,3 +39,42 @@ const (
 	QuestionTypeEssay          = "essay"
 	QuestionTypeShortAnswer    = "short_answer"
 )
+
+// FormatDifficultyToPtBR converte o valor de dificuldade para pt-BR.
+func FormatDifficultyToPtBR(difficulty string) string {
+	switch difficulty {
+	case DifficultyEasy:
+		return "Fácil"
+	case DifficultyMedium:
+		return "Média" // Adjusted to "Média" for feminine agreement if "Dificuldade" is considered feminine
+	case DifficultyHard:
+		return "Difícil"
+	default:
+		return difficulty // Retorna o original se não mapeado
+	}
+}
+
+// FormatQuestionTypeToPtBR converte o tipo de questão para pt-BR.
+func FormatQuestionTypeToPtBR(qType string) string {
+	switch qType {
+	case QuestionTypeMultipleChoice:
+		return "Múltipla Escolha"
+	case QuestionTypeTrueFalse:
+		return "Verdadeiro/Falso"
+	case QuestionTypeEssay:
+		return "Dissertativa"
+	case QuestionTypeShortAnswer:
+		return "Resposta Curta"
+	default:
+		return qType // Retorna o original se não mapeado
+	}
+}
+
+// FormatLastUsedAt formata o timestamp LastUsedAt para exibição.
+// Retorna "Nunca utilizada" se o tempo for zero.
+func FormatLastUsedAt(t time.Time) string {
+	if t.IsZero() {
+		return "Nunca utilizada"
+	}
+	return t.Format(time.RFC1123Z) // Using a common, detailed format
+}
