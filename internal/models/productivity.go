@@ -3,39 +3,42 @@ package models
 import "time"
 
 // Task representa uma tarefa a ser realizada.
+// Contém todos os detalhes pertinentes a uma tarefa individual.
 type Task struct {
-	ID          string    // Identificador único da tarefa
-	Description string    // Descrição da tarefa
-	DueDate     time.Time // Data de vencimento da tarefa
-	Priority    int       // Prioridade da tarefa (ex: 1-Alta, 2-Média, 3-Baixa)
-	Status      string    // Status da tarefa (ex: Pendente, Em Andamento, Concluída)
-	Tags        []string  // Etiquetas ou categorias para a tarefa
-	CreatedAt   time.Time // Data de criação da tarefa
-	UpdatedAt   time.Time // Data da última atualização da tarefa
+	ID          string    // Identificador único da tarefa (ex: "task-1").
+	Description string    // Descrição textual da tarefa.
+	DueDate     time.Time // Data de vencimento da tarefa. Pode ser zero se não houver prazo.
+	Priority    int       // Prioridade da tarefa (ex: 1-Alta, 2-Média, 3-Baixa).
+	Status      string    // Status atual da tarefa (ex: "Pendente", "Em Andamento", "Concluída").
+	Tags        []string  // Etiquetas ou categorias associadas à tarefa para facilitar a filtragem e organização.
+	CreatedAt   time.Time // Timestamp da criação da tarefa.
+	UpdatedAt   time.Time // Timestamp da última atualização da tarefa.
 }
 
-// Event representa um evento na agenda.
+// Event representa um evento ou compromisso na agenda.
+// Difere de uma tarefa por ter horários de início e fim definidos.
 type Event struct {
-	ID          string    // Identificador único do evento
-	Title       string    // Título do evento
-	Description string    // Descrição detalhada do evento
-	StartTime   time.Time // Data e hora de início do evento
-	EndTime     time.Time // Data e hora de término do evento
-	Location    string    // Local do evento (opcional)
-	CreatedAt   time.Time // Data de criação do evento
-	UpdatedAt   time.Time // Data da última atualização do evento
+	ID          string    // Identificador único do evento (ex: "event-1").
+	Title       string    // Título breve do evento.
+	Description string    // Descrição mais detalhada do evento (opcional).
+	StartTime   time.Time // Data e hora de início do evento.
+	EndTime     time.Time // Data e hora de término do evento.
+	Location    string    // Local onde o evento ocorrerá (opcional).
+	CreatedAt   time.Time // Timestamp da criação do evento.
+	UpdatedAt   time.Time // Timestamp da última atualização do evento.
 }
 
-// Routine representa uma rotina que pode gerar tarefas recorrentes.
+// Routine representa um modelo para a criação de tarefas recorrentes ou em massa.
+// Permite definir um padrão para tarefas que precisam ser geradas periodicamente ou sob demanda.
 type Routine struct {
-	ID                string   // Identificador único da rotina
-	Name              string   // Nome da rotina (ex: "Preparar aula de Segunda")
-	Description       string   // Descrição da rotina
-	Frequency         string   // Frequência da rotina (ex: "daily", "weekly:Mon,Wed,Fri", "monthly:15", "cron:* * * * *")
-	TaskDescription   string   // Modelo para a descrição das tarefas geradas
-	TaskPriority      int      // Prioridade padrão para as tarefas geradas
-	TaskTags          []string // Etiquetas padrão para as tarefas geradas
-	NextRunTime       time.Time // Próxima vez que a rotina deve ser executada para gerar tarefas
-	CreatedAt         time.Time // Data de criação da rotina
-	UpdatedAt         time.Time // Data da última atualização da rotina
+	ID              string    // Identificador único do modelo de rotina (ex: "routine-1").
+	Name            string    // Nome descritivo do modelo de rotina (ex: "Preparar relatório semanal").
+	Description     string    // Descrição detalhada do propósito ou conteúdo do modelo de rotina (opcional).
+	Frequency       string    // Define a recorrência da rotina (ex: "diaria", "semanal:seg,qua", "mensal:15", "manual").
+	TaskDescription string    // Modelo para a descrição das tarefas que serão geradas por esta rotina. Pode conter placeholders como {data} ou {nome_rotina}.
+	TaskPriority    int       // Prioridade padrão para as tarefas geradas por esta rotina.
+	TaskTags        []string  // Etiquetas padrão para as tarefas geradas por esta rotina.
+	NextRunTime     time.Time // Data e hora da próxima vez que a rotina deve ser processada para gerar tarefas (para rotinas automáticas).
+	CreatedAt       time.Time // Timestamp da criação do modelo de rotina.
+	UpdatedAt       time.Time // Timestamp da última atualização do modelo de rotina.
 }
