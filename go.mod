@@ -1,3 +1,4 @@
+module vickgenda
 module github.com/vickgenda/vickgenda
 
 go 1.24.3
