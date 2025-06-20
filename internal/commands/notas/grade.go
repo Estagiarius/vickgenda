@@ -4,10 +4,11 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"strings" // Added missing import
 	"time"
 
-	"vickgenda/internal/models"
-	"vickgenda/internal/store"
+	"vickgenda-cli/internal/models"
+	"vickgenda-cli/internal/store"
 )
 
 var ActiveGradeStore store.GradeStore

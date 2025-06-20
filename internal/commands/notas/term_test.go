@@ -4,7 +4,7 @@ import (
 	"reflect"
 	"testing"
 
-	"vickgenda/internal/models"
+	"vickgenda-cli/internal/models"
 )
 
 func TestConfigurarBimestreAdicionar(t *testing.T) {

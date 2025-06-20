@@ -11,8 +11,8 @@ import (
 
 	"github.com/google/uuid"
 	_ "github.com/mattn/go-sqlite3" // Driver for sqlite3
-	"vickgenda/internal/models"
-	"vickgenda/internal/store"
+	"vickgenda-cli/internal/models"
+	"vickgenda-cli/internal/store"
 )
 
 // setupGradeDB initializes an in-memory SQLite database and all required stores for testing grades.
@@ -327,10 +327,10 @@ func TestGradeStore_ForeignKeyConstraints(t *testing.T) {
 
 
 // TestMain can be used for global setup/teardown
-func TestMain(m *testing.M) {
-	// No global setup needed for :memory: DBs that are fresh each test.
-	os.Exit(m.Run())
-}
+// func TestMain(m *testing.M) { // Removed to avoid multiple TestMain definitions
+// 	// No global setup needed for :memory: DBs that are fresh each test.
+// 	os.Exit(m.Run())
+// }
 
 // Note: parseGradeTestDate is a duplicate of parseDate from termstore_test.go.
 // In a real scenario, this would be in a shared test utility package.

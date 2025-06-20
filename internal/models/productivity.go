@@ -15,6 +15,13 @@ type Task struct {
 	UpdatedAt   time.Time // Timestamp da última atualização da tarefa.
 }
 
+// TaskStatus constants
+const (
+	TaskStatusPending    = "Pendente"
+	TaskStatusInProgress = "Em Andamento"
+	TaskStatusCompleted  = "Concluída"
+)
+
 // Event representa um evento ou compromisso na agenda.
 // Difere de uma tarefa por ter horários de início e fim definidos.
 type Event struct {

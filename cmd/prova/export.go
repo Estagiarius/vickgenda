@@ -2,7 +2,7 @@ package prova
 
 import (
 	"fmt"
-	"os" // Required for os.WriteFile in actual implementation, used for placeholder message here
+	// "os" // Required for os.WriteFile in actual implementation, used for placeholder message here - REMOVED
 	"strings"
 	"time"
 
@@ -18,9 +18,9 @@ var sampleGeneratedProvasForExport = []models.Test{
 }
 
 var sampleQuestionsForExport = []models.Question{
-	{ID: "qExp1", Subject: "Matemática", Text: "Qual o resultado de 10+10?", Type: "multipla_escolha", Difficulty: "fácil", Options: []models.QuestionOption{{Text: "15"}, {Text: "20", IsCorrect: true}, {Text: "25"}}, CorrectAnswers: []string{"20"}},
-	{ID: "qExp2", Subject: "Matemática", Text: "O que é uma equação?", Type: "dissertativa", Difficulty: "médio", CorrectAnswers: []string{"Uma igualdade envolvendo uma ou mais incógnitas."}},
-	{ID: "qExp3", Subject: "História", Text: "Quem foi o primeiro presidente do Brasil?", Type: "multipla_escolha", Difficulty: "difícil", Options: []models.QuestionOption{{Text: "Deodoro da Fonseca", IsCorrect: true}, {Text: "Prudente de Morais"}}, CorrectAnswers: []string{"Deodoro da Fonseca"}},
+	{ID: "qExp1", Subject: "Matemática", QuestionText: "Qual o resultado de 10+10?", QuestionType: models.QuestionTypeMultipleChoice, Difficulty: models.DifficultyEasy, AnswerOptions: []string{"15", "20", "25"}, CorrectAnswers: []string{"20"}},
+	{ID: "qExp2", Subject: "Matemática", QuestionText: "O que é uma equação?", QuestionType: models.QuestionTypeEssay, Difficulty: models.DifficultyMedium, CorrectAnswers: []string{"Uma igualdade envolvendo uma ou mais incógnitas."}},
+	{ID: "qExp3", Subject: "História", QuestionText: "Quem foi o primeiro presidente do Brasil?", QuestionType: models.QuestionTypeMultipleChoice, Difficulty: models.DifficultyHard, AnswerOptions: []string{"Deodoro da Fonseca", "Prudente de Morais"}, CorrectAnswers: []string{"Deodoro da Fonseca"}},
 }
 
 // Helper to find a Test by ID
@@ -91,7 +91,7 @@ var exportCmd = &cobra.Command{
 			} else {
 				fmt.Printf("AVISO: A questão com ID '%s' (listada na prova) não foi encontrada no banco de questões de simulação.\n", qID)
 				// Create a placeholder to maintain order and indicate missing data
-				placeholderQuestion := &models.Question{ID: qID, Text: fmt.Sprintf("[Questão com ID '%s' não encontrada]", qID), Type: "desconhecido"}
+				placeholderQuestion := &models.Question{ID: qID, QuestionText: fmt.Sprintf("[Questão com ID '%s' não encontrada]", qID), QuestionType: "desconhecido"}
 				fetchedQuestions = append(fetchedQuestions, placeholderQuestion)
 				questionsMap[qID] = placeholderQuestion
 			}
@@ -176,30 +176,31 @@ func formatTestContentForExport(test *models.Test, questions []*models.Question,
 				sb.WriteString(fmt.Sprintf("%d. [Erro - Questão nula na lista]\n\n", i+1))
 				continue
 			}
-			sb.WriteString(fmt.Sprintf("%d. (ID: %s) %s\n", i+1, question.ID, question.Text))
+			sb.WriteString(fmt.Sprintf("%d. (ID: %s) %s\n", i+1, question.ID, question.QuestionText))
 
-			if strings.HasPrefix(question.Text, "[Questão com ID") && strings.HasSuffix(question.Text, "não encontrada]") {
+			if strings.HasPrefix(question.QuestionText, "[Questão com ID") && strings.HasSuffix(question.QuestionText, "não encontrada]") {
 				sb.WriteString("\n"); // Extra space for missing questions
 				continue;
 			}
 
 
-			if question.Type == "multipla_escolha" {
-				if len(question.Options) > 0 {
+			if question.QuestionType == models.QuestionTypeMultipleChoice {
+				if len(question.AnswerOptions) > 0 {
 					// sb.WriteString("   Opções:\n") // Removed for cleaner export
-					for j, opt := range question.Options {
+					for j, opt := range question.AnswerOptions {
 						prefix := fmt.Sprintf("  %c)", 'A'+j)
 						marker := "" // No marker for plain export unless answers are shown
 						if showAnswers {
 							marker = "[ ]" // Default for showAnswers
 							for _, correctAns := range question.CorrectAnswers {
-								if strings.EqualFold(opt.Text, correctAns) {
+								// Assuming CorrectAnswers for MC stores the text of the correct option
+								if strings.EqualFold(opt, correctAns) {
 									marker = "[*]"
 									break
 								}
 							}
 						}
-						sb.WriteString(fmt.Sprintf("%s %s %s\n", prefix, marker, opt.Text))
+						sb.WriteString(fmt.Sprintf("%s %s %s\n", prefix, marker, opt))
 					}
 				} else {
 					// sb.WriteString("   AVISO: Questão de múltipla escolha sem opções definidas.\n")
@@ -208,13 +209,13 @@ func formatTestContentForExport(test *models.Test, questions []*models.Question,
 
 			if showAnswers {
 				if len(question.CorrectAnswers) > 0 {
-					if question.Type == "dissertativa" || (question.Type == "multipla_escolha" && len(question.Options) == 0) {
+					if question.QuestionType == models.QuestionTypeEssay || (question.QuestionType == models.QuestionTypeMultipleChoice && len(question.AnswerOptions) == 0) {
 						sb.WriteString(fmt.Sprintf("   Resposta Correta: %s\n", strings.Join(question.CorrectAnswers, " | ")))
-					} else if question.Type == "multipla_escolha" && len(question.Options) > 0 && markerHasNotShownAllAnswers(question) {
+					} else if question.QuestionType == models.QuestionTypeMultipleChoice && len(question.AnswerOptions) > 0 && markerHasNotShownAllAnswers(question) {
 						// If markers didn't show all, or for a summary
 						sb.WriteString(fmt.Sprintf("   Gabarito: %s\n", strings.Join(question.CorrectAnswers, " | ")))
 					}
-				} else if question.Type != "multipla_escolha" || len(question.Options) == 0 { // Avoid for MC with options if no correct answer is set
+				} else if question.QuestionType != models.QuestionTypeMultipleChoice || len(question.AnswerOptions) == 0 { // Avoid for MC with options if no correct answer is set
 					// sb.WriteString("   AVISO: Resposta correta não disponível.\n")
 				}
 			}

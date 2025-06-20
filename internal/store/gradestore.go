@@ -3,10 +3,10 @@ package store
 import (
 	"database/sql"
 	"fmt"
-	"time"
+	// "time" // Removed as it's unused
 
 	"github.com/google/uuid"
-	"vickgenda/internal/models"
+	"vickgenda-cli/internal/models"
 )
 
 // GradeStore defines the interface for grade persistence.

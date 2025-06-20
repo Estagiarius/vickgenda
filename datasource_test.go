@@ -1,8 +1,9 @@
-package main
+package main_test // Changed package name
 
 import (
 	"fmt"
 	"log"
+	"testing" // Added testing package
 
 	"vickgenda-cli/internal/commands/agenda"
 	"vickgenda-cli/internal/commands/rotina"
@@ -10,7 +11,7 @@ import (
 	"vickgenda-cli/internal/db"
 )
 
-func main() {
+func TestDatasourceAccessibility(t *testing.T) { // Renamed main to TestDatasourceAccessibility
 	fmt.Println("Attempting to run full datasource accessibility test...")
 
 	// Initialize the database

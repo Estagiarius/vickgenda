@@ -43,13 +43,13 @@ func displayDashboard() {
 			for _, event := range realEvents {
 				// Format: [HH:MM] Titulo - Descricao (Local)
 				// Assuming event.Inicio is a time.Time object
-				// Assuming event.Local is a field in models.Event
+				// Assuming event.Location is a field in models.Event
 				local := ""
-				if event.Local != "" {
-					local = fmt.Sprintf(" (%s)", event.Local)
+				if event.Location != "" {
+					local = fmt.Sprintf(" (%s)", event.Location)
 				}
 				eventStrings = append(eventStrings, fmt.Sprintf("[%s] %s - %s%s",
-					event.Inicio.Format("15:04"), event.Titulo, event.Descricao, local))
+					event.StartTime.Format("15:04"), event.Title, event.Description, local))
 			}
 		}
 	}
@@ -57,7 +57,7 @@ func displayDashboard() {
 	// --- Fetch Real Pending Tasks ---
 	var taskStrings []string
 	// ListarTarefas(status string, priority int, dueDate string, tag string, sortBy string, sortOrder string)
-	realTasks, err := tarefa.ListarTarefas("Pendente", 0, "", "", "DueDate", "asc")
+	realTasks, err := tarefa.ListarTarefas(models.TaskStatusPending, 0, "", "", "DueDate", "asc")
 	if err != nil {
 		log.Printf("Error fetching tasks for dashboard: %v", err)
 		taskStrings = append(taskStrings, "Erro ao carregar tarefas pendentes.")
@@ -74,11 +74,12 @@ func displayDashboard() {
 				// Assuming task.Status gives "Pendente", "Em Andamento", "Concluída"
 				// For pending, we use "[ ]"
 				statusMarker := "[ ]" // Default for pending
-				if task.Status == models.TaskStatusCompleted {
+				if task.Status == models.TaskStatusCompleted { // Using constant
 					statusMarker = "[x]"
-				} else if task.Status == models.TaskStatusInProgress {
+				} else if task.Status == models.TaskStatusInProgress { // Using constant
 					statusMarker = "[/]"
 				}
+				// If task.Status is models.TaskStatusPending, it will remain "[ ]"
 
 				taskStrings = append(taskStrings, fmt.Sprintf("%s %s%s",
 					statusMarker, task.Description, dueDateStr))

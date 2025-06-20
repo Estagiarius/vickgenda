@@ -10,8 +10,8 @@ import (
 
 	"github.com/google/uuid"
 	_ "github.com/mattn/go-sqlite3" // Driver for sqlite3
-	"vickgenda/internal/models"
-	"vickgenda/internal/store"
+	"vickgenda-cli/internal/models"
+	"vickgenda-cli/internal/store"
 )
 
 // setupStudentDB initializes an in-memory SQLite database and a StudentStore for testing.
@@ -180,9 +180,9 @@ func TestStudentStore_SaveStudent_IDGeneration(t *testing.T) {
 }
 
 // TestMain can be used for global setup/teardown if needed
-func TestMain(m *testing.M) {
-	os.Exit(m.Run())
-}
+// func TestMain(m *testing.M) { // Removed to avoid multiple TestMain definitions
+// 	os.Exit(m.Run())
+// }
 
 // Explicitly import sort for clarity, though it's used via sort.Slice in ListStudents test verification.
 // The student store implementation itself uses `ORDER BY name ASC` in SQL.

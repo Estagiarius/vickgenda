@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time" // Necessário para EditarNota e LancarNota
 
-	"vickgenda/internal/models"
+	"vickgenda-cli/internal/models"
 )
 
 // ... (setupGradeTests, TestLancarNota, TestVerNotas, floatEquals, sortGradesByID, TestCalcularMedia - como no diff anterior) ...

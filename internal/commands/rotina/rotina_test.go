@@ -5,8 +5,8 @@ import (
 	"testing"
 	"time"
 
-	"vickgenda/internal/models"
-	"vickgenda/internal/commands/tarefa" // Needed for checking generated tasks
+	"vickgenda-cli/internal/models"
+	"vickgenda-cli/internal/commands/tarefa" // Needed for checking generated tasks
 )
 
 // Helper to check if a slice of routines contains a routine with a specific ID
@@ -253,5 +253,3 @@ func TestGerarTarefasFromModelo(t *testing.T) {
 		}
 	})
 }
-
-```

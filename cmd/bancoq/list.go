@@ -56,7 +56,7 @@ func init() {
 }
 
 func runListQuestions(cmd *cobra.Command, args []string) {
-	if err := db.InitDB(); err != nil { // Ensure DB is initialized
+	if err := db.InitDB(""); err != nil { // Ensure DB is initialized
 		fmt.Fprintf(os.Stderr, "Erro ao inicializar o banco de dados: %v\n", err)
 		os.Exit(1)
 	}

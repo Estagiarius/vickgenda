@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"time"
 
-	"vickgenda/internal/models"
-	"vickgenda/internal/store"
+	"vickgenda-cli/internal/models"
+	"vickgenda-cli/internal/store"
 )
 
 var ActiveAulaStore store.AulaStore

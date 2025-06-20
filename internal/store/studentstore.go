@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	"github.com/google/uuid"
-	"vickgenda/internal/models"
+	"vickgenda-cli/internal/models"
 )
 
 // StudentStore defines the interface for student persistence.

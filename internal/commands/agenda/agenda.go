@@ -8,7 +8,7 @@ import (
 	"sync"
 	"time"
 
-	"vickgenda/internal/models"
+	"vickgenda-cli/internal/models"
 )
 
 // dateTimeLayout define o formato padrão para parsing de data e hora (YYYY-MM-DD HH:MM).
@@ -341,4 +341,3 @@ func ListarProximosXEventos(count int) ([]models.Event, error) {
 	}
 	return proximosEventos, nil
 }
-```

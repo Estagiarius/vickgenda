@@ -406,16 +406,19 @@ func ListQuestions(filters map[string]interface{}, sortBy string, order string, 
 		if answerOptionsJSON.Valid {
 			if err := json.Unmarshal([]byte(answerOptionsJSON.String), &q.AnswerOptions); err != nil {
 				// Log or handle individual unmarshal error, maybe skip question
+				fmt.Fprintf(os.Stderr, "Warning: failed to unmarshal AnswerOptions for question ID %s: %v\n", q.ID, err)
 			}
 		}
 		if correctAnswersJSON.Valid {
 			if err := json.Unmarshal([]byte(correctAnswersJSON.String), &q.CorrectAnswers); err != nil {
 				// Log or handle
+				fmt.Fprintf(os.Stderr, "Warning: failed to unmarshal CorrectAnswers for question ID %s: %v\n", q.ID, err)
 			}
 		}
 		if tagsJSON.Valid {
 			if err := json.Unmarshal([]byte(tagsJSON.String), &q.Tags); err != nil {
 				// Log or handle
+				fmt.Fprintf(os.Stderr, "Warning: failed to unmarshal Tags for question ID %s: %v\n", q.ID, err)
 			}
 		}
 		if lastUsedAt.Valid {

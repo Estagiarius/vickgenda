@@ -8,7 +8,7 @@ import (
 	"sync"
 	"time"
 
-	"vickgenda/internal/models"
+	"vickgenda-cli/internal/models"
 )
 
 // tarefasStore é o nosso banco de dados em memória para tarefas.
@@ -318,4 +318,3 @@ func ContarTarefas(statusFilter string, priorityFilter int, tagFilter string) (i
 	}
 	return count, nil
 }
-```

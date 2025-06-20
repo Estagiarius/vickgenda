@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"vickgenda/internal/models"
+	"vickgenda-cli/internal/models"
 )
 
 // TermStore defines the interface for term (bimestre) persistence.

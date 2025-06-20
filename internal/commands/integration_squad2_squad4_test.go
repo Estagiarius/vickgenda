@@ -6,10 +6,10 @@ import (
 	"testing"
 	"time"
 
-	"vickgenda/internal/commands/agenda"
-	"vickgenda/internal/commands/rotina"
-	"vickgenda/internal/commands/tarefa"
-	"vickgenda/internal/models"
+	"vickgenda-cli/internal/commands/agenda"
+	"vickgenda-cli/internal/commands/rotina"
+	"vickgenda-cli/internal/commands/tarefa"
+	"vickgenda-cli/internal/models"
 )
 
 const testLayoutDate = "2006-01-02"
@@ -205,5 +205,3 @@ func TestViewAndCompleteTaskFlow(t *testing.T) {
         t.Errorf("Esperado 0 tarefas pendentes após conclusão, obtido %d", tarefasPendentesCount)
     }
 }
-
-```

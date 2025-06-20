@@ -3,13 +3,14 @@ package squad4
 import (
 	"fmt"
 	"log"
-	"strings"
-	"time"
+	"time" // Re-added
+	// "strings" // Stays removed
 
 	"vickgenda-cli/internal/commands/agenda"
 	"vickgenda-cli/internal/commands/rotina"
 	"vickgenda-cli/internal/commands/tarefa"
 	"vickgenda-cli/internal/models"
+	"vickgenda-cli/internal/db" // Added import for db package
 
 	"github.com/spf13/cobra"
 )
@@ -59,7 +60,7 @@ Atualmente, o período para eventos é fixo como "mês atual".`,
 			numCriadas = len(allTasks)
 		}
 
-		completedTasks, errCompleted := tarefa.ListarTarefas(string(models.TaskStatusCompleted), 0, "", "", "", "")
+		completedTasks, errCompleted := tarefa.ListarTarefas(models.TaskStatusCompleted, 0, "", "", "", "")
 		if errCompleted != nil {
 			log.Printf("Erro ao buscar tarefas concluídas para relatório: %v", errCompleted)
 			fmt.Println("Tarefas: Erro ao carregar dados de tarefas concluídas.")
@@ -67,7 +68,7 @@ Atualmente, o período para eventos é fixo como "mês atual".`,
 			numConcluidas = len(completedTasks)
 		}
 
-		pendingTasks, errPending := tarefa.ListarTarefas(string(models.TaskStatusPending), 0, "", "", "", "")
+		pendingTasks, errPending := tarefa.ListarTarefas(models.TaskStatusPending, 0, "", "", "", "")
 		if errPending != nil {
 			log.Printf("Erro ao buscar tarefas pendentes para relatório: %v", errPending)
 			fmt.Println("Tarefas: Erro ao carregar dados de tarefas pendentes.")
@@ -90,8 +91,8 @@ Atualmente, o período para eventos é fixo como "mês atual".`,
 			fmt.Println("  - Tempo total em eventos (mês atual): Erro ao carregar dados.")
 		} else {
 			for _, evento := range eventosMes {
-				if !evento.Inicio.IsZero() && !evento.Fim.IsZero() && evento.Fim.After(evento.Inicio) {
-					totalTempoEventos += evento.Fim.Sub(evento.Inicio)
+				if !evento.StartTime.IsZero() && !evento.EndTime.IsZero() && evento.EndTime.After(evento.StartTime) {
+					totalTempoEventos += evento.EndTime.Sub(evento.StartTime)
 				}
 			}
 			fmt.Println("\nAGENDA:")
@@ -154,7 +155,7 @@ O argumento 'disciplina' é opcional e sua funcionalidade de filtro ainda não f
 		// Fetch All Questions
 		// Using a large limit to fetch "all" questions. Proper pagination might be needed for very large dbs.
 		// ListQuestions(filters map[string]interface{}, sortBy string, order string, limit int, page int)
-		allQuestions, totalFetched, err := db.ListQuestions(nil, "", "", 10000, 1)
+		allQuestions, _, err := db.ListQuestions(nil, "", "", 10000, 1) // Assign totalFetched to _
 		if err != nil {
 			log.Printf("Erro ao buscar questões para relatório: %v", err)
 			fmt.Println("Erro ao carregar dados do banco de questões.")
