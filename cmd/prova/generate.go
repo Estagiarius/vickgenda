@@ -29,7 +29,7 @@ var sampleQuestions = []models.Question{
 var generateCmd = &cobra.Command{
 	Use:   "generate",
 	Short: "Gera uma nova prova",
-	Long:  `Gera uma nova prova com base em questões existentes, permitindo especificar diversos parâmetros.`,
+	Long:  `Cria uma nova prova com base em questões existentes no banco de dados, permitindo especificar diversos critérios de seleção e formatação.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		fmt.Println("Executando o comando 'prova generate'...")
 
@@ -79,7 +79,7 @@ var generateCmd = &cobra.Command{
 		}
 
 		if len(filteredQuestions) == 0 {
-			fmt.Println("Nenhuma questão encontrada com os critérios especificados.")
+			fmt.Println("Nenhuma questão foi encontrada com os critérios especificados.")
 			return
 		}
 		fmt.Printf("Total de questões filtradas inicialmente: %d\n", len(filteredQuestions))
@@ -282,20 +282,20 @@ func init() {
 	generateCmd.Flags().StringP("subject", "s", "", "Disciplina principal da prova (obrigatório)")
 	generateCmd.MarkFlagRequired("subject")
 
-	generateCmd.Flags().StringSlice("topic", []string{}, "Tópicos/assuntos a serem incluídos na prova (opcional)")
+	generateCmd.Flags().StringSlice("topic", []string{}, "Tópicos/assuntos específicos a serem incluídos na prova (opcional)")
 	generateCmd.Flags().StringSlice("difficulty", []string{}, "Níveis de dificuldade das questões (ex: facil, medio, dificil) (opcional)")
 	generateCmd.Flags().StringSlice("type", []string{}, "Tipos de questões (ex: multipla_escolha, dissertativa) (opcional)")
 	generateCmd.Flags().StringSlice("tag", []string{}, "Tags para filtrar questões (opcional)")
 
-	generateCmd.Flags().Int("num-questions", 0, "Número total de questões a serem selecionadas (opcional)")
-	generateCmd.Flags().Int("num-easy", 0, "Número de questões fáceis (opcional, usado se num-questions não for especificado)")
-	generateCmd.Flags().Int("num-medium", 0, "Número de questões médias (opcional, usado se num-questions não for especificado)")
-	generateCmd.Flags().Int("num-hard", 0, "Número de questões difíceis (opcional, usado se num-questions não for especificado)")
+	generateCmd.Flags().Int("num-questions", 0, "Número total de questões a serem selecionadas aleatoriamente (opcional)")
+	generateCmd.Flags().Int("num-easy", 0, "Número específico de questões fáceis (opcional, usado se --num-questions não for especificado)")
+	generateCmd.Flags().Int("num-medium", 0, "Número específico de questões médias (opcional, usado se --num-questions não for especificado)")
+	generateCmd.Flags().Int("num-hard", 0, "Número específico de questões difíceis (opcional, usado se --num-questions não for especificado)")
 
-	generateCmd.Flags().Bool("allow-duplicates", false, "Permitir questões duplicadas (opcional, padrão: false)")
-	generateCmd.Flags().Bool("randomize-order", false, "Randomizar a ordem das questões na prova (opcional, padrão: false)")
+	generateCmd.Flags().Bool("allow-duplicates", false, "Permitir que a mesma questão apareça mais de uma vez (opcional, padrão: false)")
+	generateCmd.Flags().Bool("randomize-order", false, "Randomizar a ordem das questões na prova gerada (opcional, padrão: false)")
 
-	generateCmd.Flags().StringP("output-file", "o", "", "Caminho do arquivo para salvar a prova gerada (opcional)")
+	generateCmd.Flags().StringP("output-file", "o", "", "Caminho do arquivo onde a prova gerada será salva (opcional)")
 	generateCmd.Flags().String("output-format", "txt", "Formato do arquivo de saída (ex: txt, json, pdf) (opcional, padrão: txt)")
 	generateCmd.Flags().StringP("instructions", "i", "", "Instruções gerais para a prova (opcional)")
 

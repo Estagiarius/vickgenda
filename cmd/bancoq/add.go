@@ -16,8 +16,8 @@ import (
 
 var bancoqAddCmd = &cobra.Command{
 	Use:   "add",
-	Short: "Adiciona uma nova questão ao banco de questões",
-	Long:  `Adiciona uma nova questão de forma interativa ou através de flags.`,
+	Short: "Adiciona uma nova questão ao banco",
+	Long:  `Permite adicionar uma nova questão ao banco de questões. Pode ser usado de forma interativa, solicitando cada campo, ou de forma não-interativa através de flags.`,
 	Run:   runAddQuestion,
 }
 
@@ -40,15 +40,15 @@ func init() {
 	BancoqCmd.AddCommand(bancoqAddCmd)
 
 	// Flags for non-interactive mode
-	bancoqAddCmd.Flags().StringVarP(&questionFlags.Subject, "subject", "s", "", "Matéria da questão (obrigatório em modo não-interativo)")
+	bancoqAddCmd.Flags().StringVarP(&questionFlags.Subject, "subject", "s", "", "Disciplina da questão (obrigatório em modo não-interativo)")
 	bancoqAddCmd.Flags().StringVarP(&questionFlags.Topic, "topic", "t", "", "Tópico da questão (obrigatório em modo não-interativo)")
 	bancoqAddCmd.Flags().StringVarP(&questionFlags.Difficulty, "difficulty", "d", "", "Nível de dificuldade (easy, medium, hard) (obrigatório em modo não-interativo)")
 	bancoqAddCmd.Flags().StringVarP(&questionFlags.QuestionType, "type", "q", "", "Tipo da questão (multiple_choice, true_false, essay, short_answer) (obrigatório em modo não-interativo)")
 	bancoqAddCmd.Flags().StringVarP(&questionFlags.QuestionText, "question", "x", "", "Texto da questão (obrigatório em modo não-interativo)")
-	bancoqAddCmd.Flags().StringSliceVarP(&questionFlags.AnswerOptions, "option", "o", []string{}, "Opção de resposta (para multiple_choice, true_false). Pode ser usado múltiplas vezes.")
-	bancoqAddCmd.Flags().StringSliceVarP(&questionFlags.CorrectAnswers, "answer", "a", []string{}, "Resposta(s) correta(s). Pode ser usado múltiplas vezes. (obrigatório em modo não-interativo)")
+	bancoqAddCmd.Flags().StringSliceVarP(&questionFlags.AnswerOptions, "option", "o", []string{}, "Opção de resposta (para multiple_choice, true_false). Pode ser usado múltiplas vezes")
+	bancoqAddCmd.Flags().StringSliceVarP(&questionFlags.CorrectAnswers, "answer", "a", []string{}, "Resposta(s) correta(s). Pode ser usado múltiplas vezes (obrigatório em modo não-interativo)")
 	bancoqAddCmd.Flags().StringVar(&questionFlags.Source, "source", "", "Fonte da questão (opcional)")
-	bancoqAddCmd.Flags().StringSliceVar(&questionFlags.Tags, "tag", []string{}, "Tag para a questão (opcional). Pode ser usado múltiplas vezes.")
+	bancoqAddCmd.Flags().StringSliceVar(&questionFlags.Tags, "tag", []string{}, "Tag para a questão (opcional). Pode ser usado múltiplas vezes")
 	bancoqAddCmd.Flags().StringVar(&questionFlags.Author, "author", "", "Autor da questão (opcional)")
 }
 
@@ -73,7 +73,7 @@ func runAddQuestion(cmd *cobra.Command, args []string) {
 	if nonInteractive {
 		// Non-interactive mode: Populate from flags
 		if questionFlags.Subject == "" || questionFlags.Topic == "" || questionFlags.Difficulty == "" || questionFlags.QuestionType == "" || questionFlags.QuestionText == "" || len(questionFlags.CorrectAnswers) == 0 {
-			fmt.Fprintln(os.Stderr, "Erro: Em modo não-interativo, as flags --subject, --topic, --difficulty, --type, --question, e pelo menos uma --answer são obrigatórias.")
+			fmt.Fprintln(os.Stderr, "Erro: No modo não-interativo, as flags --subject, --topic, --difficulty, --type, --question, e pelo menos uma --answer são obrigatórias.")
 			cmd.Help() // Show help
 			os.Exit(1)
 		}
@@ -108,7 +108,7 @@ func runAddQuestion(cmd *cobra.Command, args []string) {
 		prompts := []*survey.Question{
 			{
 				Name:   "Subject",
-				Prompt: &survey.Input{Message: "Matéria:"},
+				Prompt: &survey.Input{Message: "Disciplina:"},
 				Validate: survey.Required,
 			},
 			{
@@ -141,7 +141,7 @@ func runAddQuestion(cmd *cobra.Command, args []string) {
 						switch value {
 						case models.QuestionTypeMultipleChoice: return "Múltipla Escolha"
 						case models.QuestionTypeTrueFalse: return "Verdadeiro/Falso"
-						case models.QuestionTypeEssay: return "Dissertativa"
+						case models.QuestionTypeEssay: return "Dissertativa (Ensaio)"
 						case models.QuestionTypeShortAnswer: return "Resposta Curta"
 						}
 						return value
@@ -151,7 +151,7 @@ func runAddQuestion(cmd *cobra.Command, args []string) {
 			},
 			{
 				Name:   "QuestionText",
-				Prompt: &survey.Editor{Message: "Texto da questão:", FileName: "*.md"},
+				Prompt: &survey.Editor{Message: "Texto da questão (use editor externo se preferir e cole aqui):", FileName: "nova_questao_*.md"},
 				Validate: survey.Required,
 			},
 		}
@@ -175,15 +175,15 @@ func runAddQuestion(cmd *cobra.Command, args []string) {
 
 		// Handle AnswerOptions (if multiple_choice or true_false)
 		if q.QuestionType == models.QuestionTypeMultipleChoice || q.QuestionType == models.QuestionTypeTrueFalse {
-			q.AnswerOptions = collectSliceItems("Opção de resposta (deixe vazio para terminar):", "Adicionar outra opção de resposta?")
+			q.AnswerOptions = collectSliceItems("Opção de resposta (deixe vazio e pressione Enter para terminar):", "Adicionar outra opção de resposta?")
 		}
 
 		// Handle CorrectAnswers - always required
-		q.CorrectAnswers = collectSliceItems("Resposta correta (pelo menos uma é necessária, deixe vazio para terminar após a primeira):", "Adicionar outra resposta correta?")
+		q.CorrectAnswers = collectSliceItems("Resposta correta (pelo menos uma é necessária; deixe vazio e pressione Enter para terminar após a primeira):", "Adicionar outra resposta correta?")
 		if len(q.CorrectAnswers) == 0 {
 		    // Re-ask if empty, as it's required.
 		    fmt.Println("Pelo menos uma resposta correta é obrigatória.")
-		    q.CorrectAnswers = collectSliceItems("Resposta correta (pelo menos uma é necessária, deixe vazio para terminar após a primeira):", "Adicionar outra resposta correta?")
+		    q.CorrectAnswers = collectSliceItems("Resposta correta (pelo menos uma é necessária; deixe vazio e pressione Enter para terminar após a primeira):", "Adicionar outra resposta correta?")
 		    if len(q.CorrectAnswers) == 0 {
 		         fmt.Fprintln(os.Stderr, "Erro: Pelo menos uma resposta correta deve ser fornecida.")
 		         os.Exit(1)
@@ -193,8 +193,8 @@ func runAddQuestion(cmd *cobra.Command, args []string) {
 
 		// Optional fields
 		optionalPrompts := []*survey.Question{
-			{Name: "Source", Prompt: &survey.Input{Message: "Fonte (opcional):"}},
-			{Name: "Author", Prompt: &survey.Input{Message: "Autor (opcional):"}},
+			{Name: "Source", Prompt: &survey.Input{Message: "Fonte da questão (opcional):"}},
+			{Name: "Author", Prompt: &survey.Input{Message: "Autor da questão (opcional):"}},
 		}
 		optionalAnswers := struct {Source string; Author string}{}
 		if err := survey.Ask(optionalPrompts, &optionalAnswers); err != nil {
@@ -204,7 +204,7 @@ func runAddQuestion(cmd *cobra.Command, args []string) {
 		q.Source = optionalAnswers.Source
 		q.Author = optionalAnswers.Author
 
-		q.Tags = collectSliceItems("Tag (opcional, deixe vazio para terminar):", "Adicionar outra tag?")
+		q.Tags = collectSliceItems("Tag (opcional; deixe vazio e pressione Enter para terminar):", "Adicionar outra tag?")
 	}
 
 	// Finalize and save
@@ -241,13 +241,13 @@ func collectSliceItems(initialMessage string, confirmMessage string) []string {
 		if strings.TrimSpace(item) == "" && len(items) > 0 { // Allow empty only if at least one item was added (for optional, or to finish)
 			break
 		}
+		// Allow empty first entry to skip for optional fields or answer options (which can be empty e.g. for essay)
 		if strings.TrimSpace(item) == "" && len(items) == 0 && (strings.Contains(initialMessage, "opcional") || strings.Contains(initialMessage, "Opção de resposta")) {
-		    // If it's optional or answer options (which can be empty for essay type), allow empty first entry to skip
 		    break
 		}
-         if strings.TrimSpace(item) == "" && len(items) == 0 && strings.Contains(initialMessage, "Resposta correta") {
-            // Special handling for CorrectAnswers if first entry is empty
-            fmt.Println("Pelo menos uma resposta correta é necessária.")
+		// Special handling for CorrectAnswers if first entry is empty - it's required.
+        if strings.TrimSpace(item) == "" && len(items) == 0 && strings.Contains(initialMessage, "Resposta correta") {
+            fmt.Println("Pelo menos uma resposta correta é necessária. Tente novamente.")
             continue // Re-prompt for the first correct answer
         }
 
@@ -256,16 +256,20 @@ func collectSliceItems(initialMessage string, confirmMessage string) []string {
 			items = append(items, strings.TrimSpace(item))
 		}
 
-		// Only ask to add another if the current item was not empty or if it's the first item for a required field.
+		// Only ask to add another if the current item was not empty or if it's the first item for a required field (like CorrectAnswers).
 		if strings.TrimSpace(item) != "" || (len(items) == 1 && strings.Contains(initialMessage, "Resposta correta")) {
 			var addMore bool
 			confirmPrompt := &survey.Confirm{Message: confirmMessage, Default: true}
-			survey.AskOne(confirmPrompt, &addMore)
+			if err := survey.AskOne(confirmPrompt, &addMore); err != nil {
+				fmt.Fprintf(os.Stderr, "Erro na confirmação: %v\n", err)
+				os.Exit(1) // or handle error
+			}
 			if !addMore {
 				break
 			}
 		} else if strings.TrimSpace(item) == "" && len(items) == 0 && !strings.Contains(initialMessage, "opcional") && !strings.Contains(initialMessage, "Opção de resposta") {
-            // If a required field's first entry is empty (and not handled above), break to avoid infinite loop (main validation should catch this)
+            // If a required field's first entry is empty (and not handled by specific logic above), break to avoid potential infinite loop.
+            // The main validation for required fields should ideally catch this before attempting to save.
             break
         }
 

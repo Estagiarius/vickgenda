@@ -24,8 +24,8 @@ var sampleGeneratedProvasForDelete = []models.Test{
 // deleteCmd representa o comando para remover uma prova.
 var deleteCmd = &cobra.Command{
 	Use:   "delete <id_prova>",
-	Short: "Remove uma prova",
-	Long:  `Remove uma prova do sistema com base no seu ID.`,
+	Short: "Remove uma prova existente",
+	Long:  `Exclui permanentemente uma prova do sistema com base no ID fornecido. Por padrão, solicita confirmação antes de excluir.`,
 	Args:  cobra.ExactArgs(1), // Espera exatamente um argumento: o ID da prova.
 	Run: func(cmd *cobra.Command, args []string) {
 		provaID := args[0] // Already validated by cobra.ExactArgs(1)
@@ -45,7 +45,7 @@ var deleteCmd = &cobra.Command{
 		}
 
 		if foundIndex == -1 {
-			fmt.Printf("Erro: Prova com ID '%s' não encontrada na lista de simulação.\n", provaID)
+			fmt.Printf("Erro: Prova com ID '%s' não foi encontrada na lista de simulação.\n", provaID)
 			return
 		}
 
@@ -73,7 +73,7 @@ var deleteCmd = &cobra.Command{
 		if proceedToDelete {
 			// Remover o elemento da slice
 			sampleGeneratedProvasForDelete = append(sampleGeneratedProvasForDelete[:foundIndex], sampleGeneratedProvasForDelete[foundIndex+1:]...)
-			fmt.Printf("\nProva '%s' (ID: %s) removida com sucesso.\n", provaTitle, provaID)
+			fmt.Printf("\nProva '%s' (ID: %s) foi removida com sucesso.\n", provaTitle, provaID)
 
 			// Opcional: Mostrar a lista restante para verificar (para fins de depuração/simulação)
 			fmt.Println("\nLista de provas restantes (simulação):")
@@ -92,5 +92,5 @@ var deleteCmd = &cobra.Command{
 func init() {
 	ProvaCmd.AddCommand(deleteCmd)
 	// Flags para o comando delete (baseado em docs/specifications/prova_command_spec.md):
-	deleteCmd.Flags().BoolP("force", "f", false, "Forçar a remoção da prova sem confirmação (opcional, padrão: false)")
+	deleteCmd.Flags().BoolP("force", "f", false, "Forçar a remoção da prova sem pedir confirmação (opcional, padrão: false)")
 }

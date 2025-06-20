@@ -54,8 +54,8 @@ func findViewQuestionByID(id string, questions []models.Question) *models.Questi
 // viewCmd representa o comando para visualizar uma prova específica.
 var viewCmd = &cobra.Command{
 	Use:   "view <id_prova>",
-	Short: "Visualiza uma prova específica",
-	Long:  `Carrega e exibe os detalhes de uma prova específica identificada pelo seu ID.`,
+	Short: "Visualiza os detalhes de uma prova específica",
+	Long:  `Carrega e exibe todas as informações de uma prova específica, incluindo suas questões, com base no ID fornecido. Permite formatar a saída e opcionalmente mostrar as respostas.`,
 	Args:  cobra.ExactArgs(1), // Espera exatamente um argumento: o ID da prova.
 	Run: func(cmd *cobra.Command, args []string) {
 		provaID := args[0] // Already validated by cobra.ExactArgs(1)
@@ -74,7 +74,7 @@ var viewCmd = &cobra.Command{
 		// 2. Encontrar a prova
 		prova := findTestByID(provaID, viewSampleGeneratedProvas)
 		if prova == nil {
-			fmt.Printf("Erro: Prova com ID '%s' não encontrada.\n", provaID)
+			fmt.Printf("Erro: Prova com ID '%s' não foi encontrada.\n", provaID)
 			return
 		}
 
@@ -92,7 +92,7 @@ var viewCmd = &cobra.Command{
 				fetchedQuestions = append(fetchedQuestions, question)
 				questionsFoundMap[qID] = question
 			} else {
-				fmt.Printf("AVISO: Questão com ID '%s' listada na prova não foi encontrada no banco de questões de simulação.\n", qID)
+				fmt.Printf("AVISO: A questão com ID '%s' (listada na prova) não foi encontrada no banco de questões de simulação.\n", qID)
 				// Adicionar um placeholder ou tratar como erro crítico dependendo do requisito
 				fetchedQuestions = append(fetchedQuestions, &models.Question{ID: qID, Text: fmt.Sprintf("Questão com ID '%s' não encontrada.", qID), Type: "desconhecido"})
 			}
@@ -177,6 +177,6 @@ var viewCmd = &cobra.Command{
 func init() {
 	ProvaCmd.AddCommand(viewCmd)
 	// Flags para o comando view (baseado em docs/specifications/prova_command_spec.md):
-	viewCmd.Flags().BoolP("show-answers", "a", false, "Mostrar respostas das questões na visualização (opcional, padrão: false)")
-	viewCmd.Flags().StringP("output-format", "f", "txt", "Formato de saída para visualização (ex: txt, json, markdown) (opcional, padrão: txt)")
+	viewCmd.Flags().BoolP("show-answers", "a", false, "Exibir as respostas das questões na visualização (opcional, padrão: false)")
+	viewCmd.Flags().StringP("output-format", "f", "txt", "Formato de saída para a visualização (ex: txt, json, markdown) (opcional, padrão: txt)")
 }

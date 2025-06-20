@@ -13,7 +13,7 @@ import (
 func init() {
 	// Initialize the database
 	if err := db.InitDB(""); err != nil {
-		fmt.Fprintf(os.Stderr, "Error initializing database: %v\n", err)
+		fmt.Fprintf(os.Stderr, "Erro ao inicializar o banco de dados: %v\n", err)
 		os.Exit(1)
 	}
 

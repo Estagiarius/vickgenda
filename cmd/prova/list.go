@@ -22,8 +22,8 @@ var sampleGeneratedProvas = []models.Test{
 // listCmd representa o comando para listar provas geradas.
 var listCmd = &cobra.Command{
 	Use:   "list",
-	Short: "Lista provas geradas",
-	Long:  `Lista todas as provas que foram geradas e estão armazenadas no sistema.`,
+	Short: "Lista as provas geradas",
+	Long:  `Exibe uma lista de todas as provas que foram geradas e estão atualmente armazenadas no sistema. Permite filtrar por disciplina e controlar a paginação e ordenação dos resultados.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		fmt.Println("Executando o comando 'prova list' com lógica de simulação...")
 
@@ -62,11 +62,11 @@ var listCmd = &cobra.Command{
 			}
 		}
 		if !isValidSortBy {
-			fmt.Printf("Critério de ordenação inválido: '%s'. Usando 'created_at'.\n", sortBy)
+			fmt.Printf("Critério de ordenação inválido: '%s'. Utilizando 'created_at' como padrão.\n", sortBy)
 			sortBy = "created_at"
 		}
 		if order != "asc" && order != "desc" {
-			fmt.Printf("Ordem inválida: '%s'. Usando 'desc'.\n", order)
+			fmt.Printf("Ordem de classificação inválida: '%s'. Utilizando 'desc' como padrão.\n", order)
 			order = "desc"
 		}
 
@@ -151,9 +151,9 @@ func truncateString(s string, maxLength int) string {
 func init() {
 	ProvaCmd.AddCommand(listCmd)
 	// Flags para o comando list (baseado em docs/specifications/prova_command_spec.md):
-	listCmd.Flags().StringP("subject", "s", "", "Filtrar provas por disciplina (opcional)")
+	listCmd.Flags().StringP("subject", "s", "", "Filtrar provas pela disciplina (opcional)")
 	listCmd.Flags().IntP("limit", "l", 10, "Limitar o número de provas listadas por página (opcional, padrão: 10)")
-	listCmd.Flags().IntP("page", "p", 1, "Número da página para exibir (opcional, padrão: 1)")
+	listCmd.Flags().IntP("page", "p", 1, "Número da página a ser exibida (opcional, padrão: 1)")
 	listCmd.Flags().String("sort-by", "created_at", "Critério de ordenação (ex: created_at, title, subject) (opcional, padrão: created_at)")
-	listCmd.Flags().String("order", "desc", "Ordem de classificação (asc ou desc) (opcional, padrão: desc)")
+	listCmd.Flags().String("order", "desc", "Ordem de classificação ('asc' para ascendente, 'desc' para descendente) (opcional, padrão: desc)")
 }

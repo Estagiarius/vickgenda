@@ -10,8 +10,10 @@ import (
 // This will be added to rootCmd in cmd/root.go's init()
 var BancoqCmd = &cobra.Command{
 	Use:   "bancoq",
-	Short: "Gerencia o banco de questões.",
-	Long:  `O comando 'bancoq' permite adicionar, listar, visualizar, editar e remover questões do banco de dados.`,
+	Short: "Gerencia o banco de questões",
+	Long:  `O comando 'bancoq' é o ponto de entrada para todas as operações relacionadas ao banco de questões.
+Ele permite adicionar, editar, excluir, listar, visualizar, buscar e importar questões.
+Utilize os subcomandos para realizar as ações específicas. Por exemplo, 'bancoq add' para adicionar uma nova questão.`,
 	// Run: func(cmd *cobra.Command, args []string) { fmt.Println("bancoq called") },
 }
 

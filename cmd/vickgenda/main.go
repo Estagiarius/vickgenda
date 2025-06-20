@@ -98,7 +98,7 @@ func (m model) View() string {
 	// Main content of the TUI. This is a placeholder.
 	// In a real application, this would be composed of various UI components.
 	mainContent := fmt.Sprintf(
-		"Hello, Bubble Tea! (Press Ctrl+C or Esc to quit)\n\n%s",
+		"Olá, Bubble Tea! (Pressione Ctrl+C ou Esc para sair)\n\n%s", // Translated
 		m.textInput, // Display the current text input
 	)
 
@@ -126,11 +126,12 @@ func (m model) View() string {
 // It's configured to launch the TUI by default if no subcommand is specified.
 var rootCmd = &cobra.Command{
 	Use:   "vickgenda",
-	Short: "Vickgenda is a CLI tool and TUI for managing your agenda.",
-	Long: `Vickgenda can be run as a TUI application (default if no subcommand is given)
-or with subcommands for specific actions.
-It also supports shell completion generation. For example:
-  vickgenda completion bash > /etc/bash_completion.d/vickgenda`,
+	Short: "Vickgenda CLI - Sua agenda inteligente de linha de comando", // Translated
+	Long: `Vickgenda CLI é uma ferramenta de linha de comando e TUI (Interface de Usuário de Texto)
+projetada para auxiliar no gerenciamento de sua agenda, tarefas, notas e mais, diretamente do terminal.
+Por padrão, se nenhum subcomando for fornecido, a interface TUI interativa será iniciada.
+Também suporta a geração de scripts de autocompletar para o shell. Por exemplo:
+  vickgenda completion bash > /etc/bash_completion.d/vickgenda`, // Translated and adapted
 	// CompletionOptions.DisableDefaultCmd = false enables Cobra's built-in 'completion' command.
 	// This allows users to generate shell completion scripts (e.g., for bash, zsh).
 	CompletionOptions: cobra.CompletionOptions{
@@ -148,7 +149,7 @@ It also supports shell completion generation. For example:
 			// It blocks until the TUI exits (e.g., via tea.Quit).
 			if _, err := p.Run(); err != nil {
 				// If p.Run() returns an error, report it.
-				return fmt.Errorf("error running TUI: %w", err)
+				return fmt.Errorf("erro ao executar a TUI: %w", err) // Translated
 			}
 			return nil // TUI exited cleanly.
 		}
@@ -161,9 +162,9 @@ It also supports shell completion generation. For example:
 // resolveCmd is a Cobra command for resolving contextual IDs using the ids package.
 // This is a placeholder/example command demonstrating the ID resolution functionality.
 var resolveCmd = &cobra.Command{
-	Use:   "resolve [context_type] [token]",
-	Short: "Resolves a contextual ID to its database ID (placeholder).",
-	Long:  "Example usage: vickgenda resolve task t1\n\n" + "Known placeholder examples:\n" + fmt.Sprintf("  %s\n", ids.GetPlaceholderContextualIDExamples()),
+	Use:   "resolve [tipo_contexto] [token]", // Translated
+	Short: "Resolve um ID contextual para seu ID de banco de dados (placeholder).", // Translated
+	Long:  "Exemplo de uso: vickgenda resolve tarefa t1\n\n" + "Exemplos de placeholders conhecidos:\n" + fmt.Sprintf("  %s\n", ids.GetPlaceholderContextualIDExamples()), // Partially translated, GetPlaceholderContextualIDExamples might need i18n too
 	Args:  cobra.ExactArgs(2), // Expects exactly two arguments: context_type and token.
 	RunE: func(cmd *cobra.Command, args []string) error {
 		contextType := args[0] // First argument is context_type.
@@ -173,12 +174,12 @@ var resolveCmd = &cobra.Command{
 		resolvedID, err := ids.Resolve(contextType, token)
 		if err != nil {
 			// Error will be printed to Stderr by Cobra's default error handling.
-			return fmt.Errorf("resolution error: %w", err)
+			return fmt.Errorf("erro na resolução: %w", err) // Translated
 		}
 
 		// Print to Stdout for successful resolution.
 		// Using cmd.OutOrStdout() is good practice for Cobra commands.
-		cmd.Printf("Resolved ID:\n  Original Token: %s\n  Database ID:    %s\n  Context Type:   %s\n",
+		cmd.Printf("ID Resolvido:\n  Token Original: %s\n  ID do Banco de Dados: %s\n  Tipo de Contexto:   %s\n", // Translated
 			resolvedID.OriginalToken, resolvedID.DatabaseID, resolvedID.ContextType)
 		return nil
 	},

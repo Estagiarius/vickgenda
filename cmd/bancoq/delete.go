@@ -15,7 +15,7 @@ import (
 var bancoqDeleteCmd = &cobra.Command{
 	Use:   "delete <ID_DA_QUESTAO>",
 	Short: "Remove uma questão do banco de dados",
-	Long:  `Remove uma questão do banco de dados, dado o seu ID. Solicita confirmação a menos que a flag --force seja usada.`,
+	Long:  `Remove permanentemente uma questão específica do banco de dados, utilizando o seu ID. Por padrão, solicita confirmação antes de excluir, a menos que a flag --force seja utilizada.`,
 	Args:  cobra.ExactArgs(1),
 	Run:   runDeleteQuestion,
 }
@@ -24,7 +24,7 @@ var forceDelete bool
 
 func init() {
 	BancoqCmd.AddCommand(bancoqDeleteCmd)
-	bancoqDeleteCmd.Flags().BoolVarP(&forceDelete, "force", "f", false, "Força a remoção sem confirmação")
+	bancoqDeleteCmd.Flags().BoolVarP(&forceDelete, "force", "f", false, "Força a remoção sem pedir confirmação")
 }
 
 func runDeleteQuestion(cmd *cobra.Command, args []string) {
@@ -38,17 +38,29 @@ func runDeleteQuestion(cmd *cobra.Command, args []string) {
 	// Confirmation step (if force is false)
 	confirmed := forceDelete // If forceDelete is true, confirmed is true
 	if !forceDelete {
-		confirmPrompt := &survey.Confirm{
-			Message: fmt.Sprintf("Tem certeza que deseja remover a questão com ID '%s'?", questionID),
-			Default: false,
+		// Primeiro, tentar buscar a questão para exibir seu texto (ou parte dele) na confirmação.
+		// Isso torna a confirmação mais segura para o usuário.
+		var questionTextPreview string
+		q, err := db.GetQuestionByID(questionID) // Supondo que esta função exista e retorne a questão ou um erro.
+		if err != nil || q == nil {
+			// Se não encontrar ou der erro, ainda perguntar, mas sem o texto.
+			questionTextPreview = fmt.Sprintf("com ID '%s' (detalhes não puderam ser carregados)", questionID)
+		} else {
+			if len(q.Text) > 50 { // Limitar o preview do texto
+				questionTextPreview = fmt.Sprintf("'%s...' (ID: %s)", q.Text[:50], questionID)
+			} else {
+				questionTextPreview = fmt.Sprintf("'%s' (ID: %s)", q.Text, questionID)
+			}
 		}
-		err := survey.AskOne(confirmPrompt, &confirmed)
-		if err != nil { // Handle potential error from survey itself (e.g., non-interactive environment)
-			// If survey fails in a non-interactive environment, and force is not set,
-			// it's safer to assume no confirmation.
-			// However, for this tool, EOF often means "no" or abort.
+
+		confirmPrompt := &survey.Confirm{
+			Message: fmt.Sprintf("Tem certeza que deseja remover a questão %s?", questionTextPreview),
+			Default: false,
+			Help:    "Esta ação é irreversível e removerá permanentemente a questão do banco de dados.",
+		}
+		err = survey.AskOne(confirmPrompt, &confirmed) // Reatribuir err
+		if err != nil {
 			fmt.Fprintf(os.Stderr, "Falha ao obter confirmação: %v. Remoção cancelada.\n", err)
-			// os.Exit(1); // Or simply return
 			return
 		}
 	}
@@ -59,16 +71,16 @@ func runDeleteQuestion(cmd *cobra.Command, args []string) {
 	}
 
 	// Attempt to delete the question
-	err := db.DeleteQuestion(questionID)
+	err := db.DeleteQuestion(questionID) // Reatribuir err
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			fmt.Fprintf(os.Stderr, "Erro: Questão com ID '%s' não encontrada para remoção.\n", questionID)
+		if errors.Is(err, sql.ErrNoRows) { // Idealmente, db.DeleteQuestion ou db.GetQuestionByID retornaria um erro específico
+			fmt.Fprintf(os.Stderr, "Erro: A questão com ID '%s' não foi encontrada para remoção.\n", questionID)
 		} else {
-			fmt.Fprintf(os.Stderr, "Erro ao remover questão: %v\n", err)
+			fmt.Fprintf(os.Stderr, "Erro ao remover a questão: %v\n", err)
 		}
 		os.Exit(1) // Exit with error status if deletion failed
 		return
 	}
 
-	fmt.Printf("Questão '%s' removida com sucesso.\n", questionID)
+	fmt.Printf("Questão com ID '%s' removida com sucesso.\n", questionID)
 }

@@ -48,7 +48,7 @@ func findQuestionByIDForExport(id string, questions []models.Question) *models.Q
 var exportCmd = &cobra.Command{
 	Use:   "export <id_prova> <filepath>",
 	Short: "Exporta uma prova para um arquivo",
-	Long:  `Exporta os dados de uma prova específica para um arquivo em um formato especificado (ex: JSON, PDF).`,
+	Long:  `Salva os dados de uma prova específica em um arquivo, no formato especificado (ex: TXT, JSON, PDF). Inclui todas as questões e, opcionalmente, suas respostas.`,
 	Args:  cobra.ExactArgs(2), // Espera dois argumentos: ID da prova e caminho do arquivo.
 	Run: func(cmd *cobra.Command, args []string) {
 		provaID := args[0]   // Validated by cobra.ExactArgs(2)
@@ -64,14 +64,14 @@ var exportCmd = &cobra.Command{
 		if exportFormat != "txt" {
 			// For other formats like json, pdf, html, specific libraries or logic would be needed.
 			// For now, we'll warn and default to a text-like representation if attempting others.
-			fmt.Printf("AVISO: Formato de exportação '%s' não é totalmente suportado para escrita em arquivo nesta simulação. O conteúdo gerado será textual.\n", exportFormat)
+			fmt.Printf("AVISO: O formato de exportação '%s' não é totalmente suportado para escrita em arquivo nesta simulação. O conteúdo gerado será textual.\n", exportFormat)
 			// Potentially default to .txt extension for filepath if format is not txt.
 		}
 
 		// 2. Encontrar a prova
 		prova := findTestByIDForExport(provaID, sampleGeneratedProvasForExport)
 		if prova == nil {
-			fmt.Printf("Erro: Prova com ID '%s' não encontrada.\n", provaID)
+			fmt.Printf("Erro: Prova com ID '%s' não foi encontrada.\n", provaID)
 			return
 		}
 
@@ -89,7 +89,7 @@ var exportCmd = &cobra.Command{
 				fetchedQuestions = append(fetchedQuestions, question)
 				questionsMap[qID] = question // Store in map for ordered access later
 			} else {
-				fmt.Printf("AVISO: Questão com ID '%s' (listada na prova) não foi encontrada no banco de questões de simulação.\n", qID)
+				fmt.Printf("AVISO: A questão com ID '%s' (listada na prova) não foi encontrada no banco de questões de simulação.\n", qID)
 				// Create a placeholder to maintain order and indicate missing data
 				placeholderQuestion := &models.Question{ID: qID, Text: fmt.Sprintf("[Questão com ID '%s' não encontrada]", qID), Type: "desconhecido"}
 				fetchedQuestions = append(fetchedQuestions, placeholderQuestion)
@@ -108,7 +108,7 @@ var exportCmd = &cobra.Command{
 		// Passando `orderedFetchedQuestions` para manter a ordem da prova.
 		formattedContent, err := formatTestContentForExport(prova, orderedFetchedQuestions, exportFormat, showAnswers)
 		if err != nil {
-			fmt.Printf("Erro ao formatar conteúdo da prova: %v\n", err)
+			fmt.Printf("Erro ao formatar o conteúdo da prova: %v\n", err)
 			return
 		}
 
@@ -116,7 +116,7 @@ var exportCmd = &cobra.Command{
 		fmt.Printf("\n--- Simulação de Exportação para Arquivo ---\n")
 		fmt.Printf("Arquivo: %s\n", filepath)
 		fmt.Printf("Formato: %s\n", exportFormat)
-		fmt.Println("Conteúdo (primeiras ~250 chars):")
+		fmt.Println("Conteúdo (primeiras ~250 caracteres):")
 
 		contentPreview := formattedContent
 		if len(contentPreview) > 250 {
@@ -240,7 +240,7 @@ func init() {
 	ProvaCmd.AddCommand(exportCmd)
 	// Flags para o comando export (baseado em docs/specifications/prova_command_spec.md):
 	exportCmd.Flags().StringP("format", "f", "txt", "Formato do arquivo de exportação (ex: txt, json, pdf, html) (opcional, padrão: txt)")
-	exportCmd.Flags().Bool("show-answers", false, "Incluir respostas das questões na exportação (opcional, padrão: false)")
+	exportCmd.Flags().Bool("show-answers", false, "Incluir as respostas das questões no arquivo exportado (opcional, padrão: false)")
 	// A flag "template" foi mencionada no setup inicial mas não no doc. Mantendo as do doc.
 	// exportCmd.Flags().String("template", "", "Caminho para um template customizado de exportação (ex: para PDF ou HTML)")
 }
