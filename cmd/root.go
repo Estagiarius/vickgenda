@@ -5,6 +5,7 @@ import (
 	"os" // Required for os.Exit
 
 	"vickgenda-cli/cmd/bancoq"       // Direct import for adding command
+	"vickgenda-cli/cmd/prova"        // Import for prova.ProvaCmd
 	vickgendamain "vickgenda-cli/cmd/vickgenda" // Import for GetMainRootCmd
 	"vickgenda-cli/internal/db"      // Import for db.InitDB
 )
@@ -21,6 +22,7 @@ func init() {
 
 	// Add commands previously managed by this package's rootCmd
 	mainRootCmd.AddCommand(bancoq.BancoqCmd)
+	mainRootCmd.AddCommand(prova.ProvaCmd)
 	// If there were other commands added to the old rootCmd in this package, add them here.
 	// For example:
 	// mainRootCmd.AddCommand(anotherCmdFromThisPackage)
