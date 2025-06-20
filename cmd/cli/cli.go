@@ -2,11 +2,11 @@ package cli
 
 import (
 	"fmt"
-	"os"
+	// "os" // Removed as unused
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/spf13/cobra"
-	"vickgenda-cli/internal/db"     // For InitDB in root.go
+	// "vickgenda-cli/internal/db"     // Removed as unused (InitDB moved to main.go)
 	"vickgenda-cli/internal/ids"    // For resolveCmd
 	"vickgenda-cli/internal/squad4" // For DashboardCmd
 	// "vickgenda-cli/internal/tui" // Will be needed if TUI logic is separate
