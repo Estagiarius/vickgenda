@@ -40,3 +40,4 @@ require (
 )
 
 replace golang.org/x/sys => golang.org/x/sys v0.10.0
+replace golang.org/x/sync => golang.org/x/sync v0.1.0
