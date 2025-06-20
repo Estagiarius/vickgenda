@@ -22,11 +22,6 @@ func executeProvaListCommand(args ...string) (string, error) {
 	cmdToTest.SetArgs(fullArgs)
 
 	// Reset flags for listCmd to default values before each execution.
-	// This is important because Cobra commands retain flag values across executions.
-	// listCmd is a child of ProvaCmd.
-	// We need to find listCmd and reset its flags.
-	// This assumes listCmd is already added to ProvaCmd.
-	// A more robust way might be to re-initialize ProvaCmd and its subcommands for each test.
 	var listCmdInstance *cobra.Command
 	for _, cmd := range ProvaCmd.Commands() {
 		if cmd.Name() == "list" {
@@ -36,10 +31,9 @@ func executeProvaListCommand(args ...string) (string, error) {
 	}
 	if listCmdInstance != nil {
 		listCmdInstance.Flags().Visit(func(f *pflag.Flag) {
-			f.Value.Set(f.DefValue) // Reset to default value
+			f.Value.Set(f.DefValue)
 		})
 	}
-
 
 	err := cmdToTest.Execute()
 	return b.String(), err
@@ -47,46 +41,34 @@ func executeProvaListCommand(args ...string) (string, error) {
 
 // TestProvaListDefault tests the default output of 'prova list'.
 func TestProvaListDefault(t *testing.T) {
-	// Reset sample data to its original state before this test block
 	originalSampleProvas := make([]models.Test, len(sampleGeneratedProvas))
 	copy(originalSampleProvas, sampleGeneratedProvas)
 	t.Cleanup(func() {
 		sampleGeneratedProvas = originalSampleProvas
 	})
 
-
 	output, err := executeProvaListCommand()
 	if err != nil {
-		t.Fatalf("Expected no error for default list, got: %v\nOutput: %s", err, output)
+		t.Fatalf("Esperado nenhum erro para listagem padrão, obteve: %v\nSaída: %s", err, output)
 	}
 
+	// Table header is already in Portuguese in list.go
 	if !strings.Contains(output, "ID         | Título                              | Disciplina      | Data de Criação      | Nº Questões") {
-		t.Errorf("Output does not contain the expected table header. Got: %s", output)
+		t.Errorf("Saída não contém o cabeçalho da tabela esperado. Obteve: %s", output)
 	}
 
-	// Check for a known entry from sampleGeneratedProvas (e.g., "prova123")
-	// This depends on the sample data in list.go
 	if !strings.Contains(output, "prova123") {
-		t.Errorf("Output does not contain expected sample test ID 'prova123'. Got: %s", output)
+		t.Errorf("Saída não contém o ID de prova de exemplo esperado 'prova123'. Obteve: %s", output)
 	}
 	if !strings.Contains(output, "prova456") {
-		t.Errorf("Output does not contain expected sample test ID 'prova456'. Got: %s", output)
+		t.Errorf("Saída não contém o ID de prova de exemplo esperado 'prova456'. Obteve: %s", output)
 	}
 
-	// Default sort is created_at desc.
-	// sampleGeneratedProvas:
-	// {ID: "prova789", Title: "Teste Surpresa de Geografia", ..., CreatedAt: time.Now()}
-	// {ID: "prova202", Title: "Revisão de Tópicos Matemáticos", ..., CreatedAt: time.Now().Add(-12 * time.Hour)}
-	// {ID: "prova123", Title: "Prova de Matemática Básica", ..., CreatedAt: time.Now().Add(-24 * time.Hour)}
-	// {ID: "prova456", Title: "Avaliação de História do Brasil", ..., CreatedAt: time.Now().Add(-48 * time.Hour)}
-	// {ID: "prova101", Title: "Prova Avançada de Cálculo", ..., CreatedAt: time.Now().Add(-72 * time.Hour)}
-
-	// So, "prova789" should appear before "prova123"
 	idx789 := strings.Index(output, "prova789")
 	idx123 := strings.Index(output, "prova123")
 
 	if idx789 == -1 || idx123 == -1 || idx789 > idx123 {
-		t.Errorf("Default sort order (created_at desc) seems incorrect or items not found. 'prova789' index: %d, 'prova123' index: %d. Output:\n%s", idx789, idx123, output)
+		t.Errorf("Ordem de classificação padrão (created_at desc) parece incorreta ou itens não encontrados. Índice 'prova789': %d, índice 'prova123': %d. Saída:\n%s", idx789, idx123, output)
 	}
 }
 
@@ -98,29 +80,23 @@ func TestProvaListFilterBySubject(t *testing.T) {
 		sampleGeneratedProvas = originalSampleProvas
 	})
 
-	// Filter by "História"
 	output, err := executeProvaListCommand("--subject", "História")
 	if err != nil {
-		t.Fatalf("Error filtering by subject 'História': %v\nOutput: %s", err, output)
+		t.Fatalf("Erro ao filtrar por disciplina 'História': %v\nSaída: %s", err, output)
 	}
 
-	if !strings.Contains(output, "prova456") { // Belongs to História
-		t.Errorf("Expected 'prova456' (História) in output, got: %s", output)
+	if !strings.Contains(output, "prova456") {
+		t.Errorf("Esperado 'prova456' (História) na saída, obteve: %s", output)
 	}
-	if strings.Contains(output, "prova123") { // Belongs to Matemática
-		t.Errorf("Did not expect 'prova123' (Matemática) in 'História' filtered output. Got: %s", output)
+	if strings.Contains(output, "prova123") {
+		t.Errorf("Não esperado 'prova123' (Matemática) na saída filtrada por 'História'. Obteve: %s", output)
 	}
 
-	// Filter by a subject with no tests
-	outputNoMatch, errNoMatch := executeProvaListCommand("--subject", "QuímicaAvançada")
-	if errNoMatch != nil {
-		// The command itself doesn't error, it just prints a message.
-		// Depending on implementation, errNoMatch might be nil.
-		// t.Fatalf("Error filtering by subject 'QuímicaAvançada': %v\nOutput: %s", errNoMatch, outputNoMatch)
-	}
-	if !strings.Contains(outputNoMatch, "Nenhuma prova encontrada com o filtro de disciplina: 'QuímicaAvançada'") &&
-	   !strings.Contains(outputNoMatch, "Nenhuma prova encontrada para os critérios especificados.") { // Fallback message if pagination results in none
-		t.Errorf("Expected 'Nenhuma prova encontrada' message for 'QuímicaAvançada', got: %s", outputNoMatch)
+	outputNoMatch, _ := executeProvaListCommand("--subject", "QuímicaAvançada")
+	// Check for the specific Portuguese message from list.go
+	if !strings.Contains(outputNoMatch, "Nenhuma prova encontrada com o filtro de disciplina: 'QuímicaAvançada'.") &&
+	   !strings.Contains(outputNoMatch, "Nenhuma prova encontrada para os critérios especificados.") {
+		t.Errorf("Esperada mensagem 'Nenhuma prova encontrada' para 'QuímicaAvançada', obteve: %s", outputNoMatch)
 	}
 }
 
@@ -132,26 +108,23 @@ func TestProvaListSort(t *testing.T) {
 		sampleGeneratedProvas = originalSampleProvas
 	})
 
-	// Sort by title asc
-	// Titles: "Avaliação de História do Brasil" (prova456), "Prova Avançada de Cálculo" (prova101),
-	// "Prova de Matemática Básica" (prova123), "Revisão de Tópicos Matemáticos" (prova202), "Teste Surpresa de Geografia" (prova789)
 	output, err := executeProvaListCommand("--sort-by", "title", "--order", "asc")
 	if err != nil {
-		t.Fatalf("Error sorting by title asc: %v\nOutput: %s", err, output)
+		t.Fatalf("Erro ao ordenar por título asc: %v\nSaída: %s", err, output)
 	}
 
-	idxAvaliacao := strings.Index(output, "prova456") // Avaliação
-	idxProvaAvancada := strings.Index(output, "prova101") // Prova Avançada
-	idxProvaBasica := strings.Index(output, "prova123") // Prova de Matemática
+	idxAvaliacao := strings.Index(output, "prova456")
+	idxProvaAvancada := strings.Index(output, "prova101")
+	idxProvaBasica := strings.Index(output, "prova123")
 
 	if !(idxAvaliacao < idxProvaAvancada && idxProvaAvancada < idxProvaBasica) {
-		t.Errorf("Expected titles in ascending order. Got indices: Avaliação (%d), Prova Avançada (%d), Prova Básica (%d). Output:\n%s", idxAvaliacao, idxProvaAvancada, idxProvaBasica, output)
+		t.Errorf("Esperados títulos em ordem ascendente. Obteve índices: Avaliação (%d), Prova Avançada (%d), Prova Básica (%d). Saída:\n%s", idxAvaliacao, idxProvaAvancada, idxProvaBasica, output)
 	}
 
-	// Test invalid sort-by value (should default to created_at and print a message)
-	outputInvalidSort, _ := executeProvaListCommand("--sort-by", "invalidField")
-	if !strings.Contains(outputInvalidSort, "Critério de ordenação inválido: 'invalidField'. Usando 'created_at'.") {
-		t.Errorf("Expected warning for invalid sort-by value. Got: %s", outputInvalidSort)
+	outputInvalidSort, _ := executeProvaListCommand("--sort-by", "campoInvalido")
+	// Check for the specific Portuguese message from list.go
+	if !strings.Contains(outputInvalidSort, "Critério de ordenação inválido: 'campoInvalido'. Utilizando 'created_at' como padrão.") {
+		t.Errorf("Esperado aviso para critério de ordenação inválido. Obteve: %s", outputInvalidSort)
 	}
 }
 
@@ -163,44 +136,39 @@ func TestProvaListPagination(t *testing.T) {
 		sampleGeneratedProvas = originalSampleProvas
 	})
 
-	// Assuming at least 3 sample provas. Let's use the default sort (created_at desc)
-	// Prova IDs by created_at desc: prova789, prova202, prova123, prova456, prova101
-
-	// Page 1, Limit 1
 	outputP1L1, err := executeProvaListCommand("--limit", "1", "--page", "1")
 	if err != nil {
-		t.Fatalf("Error with limit 1 page 1: %v\nOutput: %s", err, outputP1L1)
+		t.Fatalf("Erro com limit 1 page 1: %v\nSaída: %s", err, outputP1L1)
 	}
-	if !strings.Contains(outputP1L1, "prova789") { // First item by created_at desc
-		t.Errorf("Expected 'prova789' on page 1 limit 1. Got: %s", outputP1L1)
+	if !strings.Contains(outputP1L1, "prova789") {
+		t.Errorf("Esperado 'prova789' na página 1 com limite 1. Obteve: %s", outputP1L1)
 	}
 	if strings.Contains(outputP1L1, "prova202") {
-		t.Errorf("Did not expect 'prova202' on page 1 limit 1. Got: %s", outputP1L1)
+		t.Errorf("Não esperado 'prova202' na página 1 com limite 1. Obteve: %s", outputP1L1)
 	}
-	if !strings.Contains(outputP1L1, "Página 1 de 5") { // Assuming 5 total sample items
-		t.Errorf("Page info incorrect for page 1 limit 1. Got: %s", outputP1L1)
+	// Check for Portuguese pagination string, e.g., "Página 1 de 5"
+	if !strings.Contains(outputP1L1, "Página 1 de 5") {
+		t.Errorf("Informação de paginação incorreta para página 1 limite 1. Obteve: %s", outputP1L1)
 	}
 
-
-	// Page 2, Limit 1
 	outputP2L1, err := executeProvaListCommand("--limit", "1", "--page", "2")
 	if err != nil {
-		t.Fatalf("Error with limit 1 page 2: %v\nOutput: %s", err, outputP2L1)
+		t.Fatalf("Erro com limit 1 page 2: %v\nSaída: %s", err, outputP2L1)
 	}
-	if !strings.Contains(outputP2L1, "prova202") { // Second item
-		t.Errorf("Expected 'prova202' on page 2 limit 1. Got: %s", outputP2L1)
+	if !strings.Contains(outputP2L1, "prova202") {
+		t.Errorf("Esperado 'prova202' na página 2 com limite 1. Obteve: %s", outputP2L1)
 	}
 	if strings.Contains(outputP2L1, "prova789") {
-		t.Errorf("Did not expect 'prova789' on page 2 limit 1. Got: %s", outputP2L1)
+		t.Errorf("Não esperado 'prova789' na página 2 com limite 1. Obteve: %s", outputP2L1)
 	}
 	if !strings.Contains(outputP2L1, "Página 2 de 5") {
-		t.Errorf("Page info incorrect for page 2 limit 1. Got: %s", outputP2L1)
+		t.Errorf("Informação de paginação incorreta para página 2 limite 1. Obteve: %s", outputP2L1)
 	}
 
-	// Page out of bounds
-	outputOOB, _ := executeProvaListCommand("--limit", "1", "--page", "10") // Assuming only 5 sample items
+	outputOOB, _ := executeProvaListCommand("--limit", "1", "--page", "10")
+	// Check for Portuguese out of bounds message from list.go
 	if !strings.Contains(outputOOB, "Página 10 fora do alcance") && !strings.Contains(outputOOB, "Nenhuma prova para exibir nesta página.") {
-		t.Errorf("Expected 'Página fora do alcance' or 'Nenhuma prova para exibir' message for out-of-bounds page. Got: %s", outputOOB)
+		t.Errorf("Esperada mensagem 'Página fora do alcance' ou 'Nenhuma prova para exibir' para página fora dos limites. Obteve: %s", outputOOB)
 	}
 }
 
@@ -212,9 +180,6 @@ func TestProvaListCombinedFlags(t *testing.T) {
 		sampleGeneratedProvas = originalSampleProvas
 	})
 
-	// Filter by Matemática, sort by title asc, limit 1, page 1
-	// Matemática titles: "Prova Avançada de Cálculo" (prova101), "Prova de Matemática Básica" (prova123), "Revisão de Tópicos Matemáticos" (prova202)
-	// Sorted by title asc: "Prova Avançada de Cálculo" (prova101) should be first.
 	args := []string{
 		"--subject", "Matemática",
 		"--sort-by", "title",
@@ -224,18 +189,17 @@ func TestProvaListCombinedFlags(t *testing.T) {
 	}
 	output, err := executeProvaListCommand(args...)
 	if err != nil {
-		t.Fatalf("Error with combined flags: %v\nOutput: %s", err, output)
+		t.Fatalf("Erro com flags combinadas: %v\nSaída: %s", err, output)
 	}
 
-	if !strings.Contains(output, "prova101") { // "Prova Avançada de Cálculo"
-		t.Errorf("Expected 'prova101' with combined flags. Got: %s", output)
+	if !strings.Contains(output, "prova101") {
+		t.Errorf("Esperado 'prova101' com flags combinadas. Obteve: %s", output)
 	}
 	if strings.Contains(output, "prova123") || strings.Contains(output, "prova202") {
-		t.Errorf("Did not expect other Matemática provas with limit 1. Got: %s", output)
+		t.Errorf("Não esperadas outras provas de Matemática com limite 1. Obteve: %s", output)
 	}
-	// Total de provas (Matemática) = 3. TotalPages = (3+1-1)/1 = 3
-	if !strings.Contains(output, "Página 1 de 3") {
-		t.Errorf("Page info incorrect for combined flags. Expected 'Página 1 de 3'. Got: %s", output)
+	if !strings.Contains(output, "Página 1 de 3") { // Total Matemática = 3
+		t.Errorf("Informação de paginação incorreta para flags combinadas. Esperado 'Página 1 de 3'. Obteve: %s", output)
 	}
 }
 
@@ -243,9 +207,6 @@ func TestProvaListCombinedFlags(t *testing.T) {
 func countTableRows(output string) int {
 	lines := strings.Split(output, "\n")
 	count := 0
-	// Regex to match a line that seems like a data row (starts with an ID, has pipes)
-	// This is fragile and depends on the exact format.
-	// Example ID: prova123 (not just digits)
 	rowRegex := regexp.MustCompile(`^[a-zA-Z0-9]+ *\|`)
 	for _, line := range lines {
 		if rowRegex.MatchString(strings.TrimSpace(line)) {
@@ -254,12 +215,6 @@ func countTableRows(output string) int {
 	}
 	return count
 }
-
-// Note: The `sampleGeneratedProvas` is modified by some operations in `list.go` (e.g. sorting is in-place).
-// For robust tests, we should ensure this sample data is reset before each test or test group,
-// or the functions in list.go should operate on a copy.
-// Added t.Cleanup to reset sampleGeneratedProvas.
-// Also, `pflag` state can persist. Added reset for listCmd flags.
 
 // Import pflag for resetting flags
 import (

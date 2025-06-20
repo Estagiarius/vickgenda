@@ -48,22 +48,25 @@ func TestProvaGenerateRequiredFlags(t *testing.T) {
 	// Test without --title
 	output, err := executeProvaCommand("--subject", "Matemática")
 	if err == nil {
-		t.Errorf("Expected error when --title is missing, got nil")
+		t.Errorf("Esperado erro quando --title está ausente, obteve nil")
 	}
 	// Cobra typically prints to stderr (which we captured) and returns an error.
 	// The exact error message depends on Cobra's internals but usually mentions the missing flag.
-	if !strings.Contains(output, "flag pflag: title has been marked as required") && !strings.Contains(output, "Error: required flag(s) \"title\" not set") {
-		// Adjusted to check for common variations of Cobra's error message
-		t.Errorf("Expected output to contain missing title flag error, got: %s", output)
+	// The actual message from Cobra might be in English: "Error: required flag(s) \"title\" not set"
+	// Or, if custom error handling is in place for i18n of Cobra errors, it could be Portuguese.
+	// For now, we'll assume Cobra's default English message or a common pattern.
+	if !strings.Contains(output, "Error: required flag(s) \"title\" not set") && !strings.Contains(output, "erro: flags obrigatórias \"title\" não configuradas") {
+		// Allowing for Cobra's typical English message or a hypothetical Portuguese one.
+		t.Errorf("Saída esperada continha erro de flag 'title' ausente, obteve: %s", output)
 	}
 
 	// Test without --subject
 	output, err = executeProvaCommand("--title", "Prova Teste")
 	if err == nil {
-		t.Errorf("Expected error when --subject is missing, got nil")
+		t.Errorf("Esperado erro quando --subject está ausente, obteve nil")
 	}
-	if !strings.Contains(output, "flag pflag: subject has been marked as required") && !strings.Contains(output, "Error: required flag(s) \"subject\" not set") {
-		t.Errorf("Expected output to contain missing subject flag error, got: %s", output)
+	if !strings.Contains(output, "Error: required flag(s) \"subject\" not set") && !strings.Contains(output, "erro: flags obrigatórias \"subject\" não configuradas") {
+		t.Errorf("Saída esperada continha erro de flag 'subject' ausente, obteve: %s", output)
 	}
 }
 
@@ -74,25 +77,23 @@ func TestProvaGenerateBasicGeneration(t *testing.T) {
 		"--title", "Prova de Matemática Simples",
 		"--subject", "Matemática", // This subject must exist in sampleQuestions
 		"--num-questions", "1",    // Requesting one question
-		// "--difficulty", "fácil", // This might be too specific if not enough easy math questions
 	}
 	output, err := executeProvaCommand(args...)
 	if err != nil {
-		t.Fatalf("Expected no error for basic generation, got: %v\nOutput: %s", err, output)
+		t.Fatalf("Esperado nenhum erro para geração básica, obteve: %v\nSaída: %s", err, output)
 	}
 
 	if !strings.Contains(output, "Prova Gerada (Objeto models.Test)") {
-		t.Errorf("Output does not contain confirmation of models.Test object creation. Got: %s", output)
+		t.Errorf("Saída não contém confirmação da criação do objeto models.Test. Obteve: %s", output)
 	}
 	if !strings.Contains(output, "ID:") { // Check for part of the models.Test output
-		t.Errorf("Output does not seem to print the Test object. Got: %s", output)
+		t.Errorf("Saída não parece imprimir o objeto Test. Obteve: %s", output)
 	}
 	if !strings.Contains(output, "Título: Prova de Matemática Simples") {
-		t.Errorf("Output does not contain the correct Test Title. Got: %s", output)
+		t.Errorf("Saída não contém o Título da Prova correto. Obteve: %s", output)
 	}
-	// Check if at least one question is mentioned in the "Visualização da Prova" part
 	if !strings.Contains(output, "Questão 1 (ID: q") {
-		t.Errorf("Output does not seem to list any question for the test. Got: %s", output)
+		t.Errorf("Saída não parece listar nenhuma questão para a prova. Obteve: %s", output)
 	}
 }
 
@@ -106,16 +107,13 @@ func TestProvaGenerateFilteringBySubject(t *testing.T) {
 	}
 	outputMath, errMath := executeProvaCommand(argsMath...)
 	if errMath != nil {
-		t.Fatalf("Error during 'Matemática' test generation: %v\nOutput: %s", errMath, outputMath)
+		t.Fatalf("Erro durante geração de prova de 'Matemática': %v\nSaída: %s", errMath, outputMath)
 	}
-	if !strings.Contains(outputMath, "Disciplina: Matemática") {
-		t.Errorf("Expected test subject to be 'Matemática', got different in output: %s", outputMath)
+	if !strings.Contains(outputMath, "Disciplina: Matemática") { // Message from generate.go
+		t.Errorf("Esperado que a disciplina da prova fosse 'Matemática', obteve diferente na saída: %s", outputMath)
 	}
-	// Count occurrences of "Questão " to see how many questions were listed
-	// This is a bit fragile but works for simulation.
-	if strings.Count(outputMath, "Questão ") < 1 && !strings.Contains(outputMath, "Nenhuma questão encontrada") {
-		// Allow for 0 if no questions match, but then the "Nenhuma questão" message should be there.
-		t.Errorf("Expected at least one question for 'Matemática' or 'Nenhuma questão encontrada' message. Got: %s", outputMath)
+	if strings.Count(outputMath, "Questão ") < 1 && !strings.Contains(outputMath, "Nenhuma questão foi encontrada") {
+		t.Errorf("Esperada pelo menos uma questão para 'Matemática' ou mensagem 'Nenhuma questão foi encontrada'. Obteve: %s", outputMath)
 	}
 
 
@@ -124,9 +122,9 @@ func TestProvaGenerateFilteringBySubject(t *testing.T) {
 		"--title", "Prova de Astronomia",
 		"--subject", "Astronomia", // Assuming "Astronomia" has no questions in sampleQuestions
 	}
-	outputNonExistent, _ := executeProvaCommand(argsNonExistent...) // Error is expected due to no questions
-	if !strings.Contains(outputNonExistent, "Nenhuma questão encontrada com os critérios especificados") {
-		t.Errorf("Expected 'Nenhuma questão encontrada' message for 'Astronomia', got: %s", outputNonExistent)
+	outputNonExistent, _ := executeProvaCommand(argsNonExistent...)
+	if !strings.Contains(outputNonExistent, "Nenhuma questão foi encontrada com os critérios especificados.") { // Message from generate.go
+		t.Errorf("Esperada mensagem 'Nenhuma questão foi encontrada com os critérios especificados.' para 'Astronomia', obteve: %s", outputNonExistent)
 	}
 }
 
@@ -135,53 +133,35 @@ func TestProvaGenerateNumQuestionsFlag(t *testing.T) {
 	// Test --num-questions
 	argsTotal := []string{
 		"--title", "Prova de 3 Questões",
-		"--subject", "Matemática", // Ensure enough math questions exist in sample
+		"--subject", "Matemática",
 		"--num-questions", "3",
 	}
 	outputTotal, errTotal := executeProvaCommand(argsTotal...)
 	if errTotal != nil {
-		t.Fatalf("Error generating test with --num-questions 3: %v\nOutput: %s", errTotal, outputTotal)
+		t.Fatalf("Erro ao gerar prova com --num-questions 3: %v\nSaída: %s", errTotal, outputTotal)
 	}
-	// A simple way to check number of questions is to count "Questão X:"
-	// This depends on the output format of the simulation.
-	numGenerated := strings.Count(outputTotal, "\nQuestão ") // Assuming each question starts on a new line like this
+	numGenerated := strings.Count(outputTotal, "\nQuestão ")
 	if numGenerated != 3 {
-		// It's possible fewer are generated if not enough match criteria.
-		// The simulation logic tries to get up to num-questions.
-		// We need to inspect sampleQuestions and filtering logic to be sure.
-		// For now, we expect it to try and succeed if questions are available.
-		// Check if "Total de questões filtradas inicialmente" is less than 3, or if selection failed.
-		if !strings.Contains(outputTotal, "Não foi possível selecionar questões") && !strings.Contains(outputTotal, "Nenhuma questão encontrada") {
-			// If it didn't explicitly fail to select, it should have 3 or fewer if sample is small
+		if !strings.Contains(outputTotal, "Não foi possível selecionar questões") && !strings.Contains(outputTotal, "Nenhuma questão foi encontrada") {
 			if numGenerated > 3 {
-				t.Errorf("Expected up to 3 questions, got %d. Output: %s", numGenerated, outputTotal)
-			} else if numGenerated == 0 && len(sampleQuestions) > 0 { // if sample has questions, 0 is unexpected unless filters are too strict
-                 // This check is tricky without knowing the exact state of sampleQuestions and filters applied by default.
-                 // For this test, let's assume there are at least 3 generic math questions.
-                 // t.Logf("Warning: Expected 3 questions, got %d. This might be due to insufficient matching sample questions for 'Matemática'. Output: %s", numGenerated, outputTotal)
-            }
+				t.Errorf("Esperado até 3 questões, obteve %d. Saída: %s", numGenerated, outputTotal)
+			}
 		}
 	}
 
-	// Test --num-easy, --num-medium, --num-hard (assuming sample data has these)
-	// This is more complex to assert precisely without deeper inspection of sample data state
-	// and the selection algorithm's behavior when exact counts aren't met.
-	// For now, a basic check that it runs:
 	argsDifficulty := []string{
 		"--title", "Prova por Dificuldade",
 		"--subject", "Matemática",
 		"--num-easy", "1",
 		"--num-medium", "1",
-		// "--num-hard", "0", // Let's assume there's at least one easy and one medium math question
 	}
 	outputDifficulty, errDiff := executeProvaCommand(argsDifficulty...)
 	if errDiff != nil {
-		t.Fatalf("Error generating test with difficulty numbers: %v\nOutput: %s", errDiff, outputDifficulty)
+		t.Fatalf("Erro ao gerar prova com números de dificuldade: %v\nSaída: %s", errDiff, outputDifficulty)
 	}
-	if !strings.Contains(outputDifficulty, "Prova Gerada") {
-		t.Errorf("Expected successful generation for difficulty specific numbers. Got: %s", outputDifficulty)
+	if !strings.Contains(outputDifficulty, "Prova Gerada") { // General check for success
+		t.Errorf("Esperada geração bem-sucedida para números específicos de dificuldade. Obteve: %s", outputDifficulty)
 	}
-	// A more robust test would check the actual difficulties of the output questions.
 }
 
 
@@ -190,20 +170,16 @@ func TestProvaGenerateRandomization(t *testing.T) {
 	args := []string{
 		"--title", "Prova Randomizada",
 		"--subject", "Matemática",
-		"--num-questions", "2", // Need at least 2 to see order effects, though we only check seed
+		"--num-questions", "2",
 		"--randomize-order",
 	}
 	output, err := executeProvaCommand(args...)
 	if err != nil {
-		t.Fatalf("Error during randomized test generation: %v\nOutput: %s", err, output)
+		t.Fatalf("Erro durante geração de prova randomizada: %v\nSaída: %s", err, output)
 	}
-	// Check if the RandomizationSeed is non-zero in the models.Test output
-	// Example output: RandomizationSeed:1234567890
 	if !strings.Contains(output, "RandomizationSeed:") || strings.Contains(output, "RandomizationSeed:0") {
-		// It's possible seed is 0 if no questions were selected, or if randomization didn't run.
-		// Check if questions were actually generated.
-		if strings.Contains(output, "Questão 1") { // implies questions were generated
-			t.Errorf("Expected a non-zero RandomizationSeed in output when --randomize-order is used and questions are generated, got: %s", output)
+		if strings.Contains(output, "Questão 1") {
+			t.Errorf("Esperado um RandomizationSeed não-zero na saída quando --randomize-order é usado e questões são geradas, obteve: %s", output)
 		}
 	}
 }
@@ -212,22 +188,21 @@ func TestProvaGenerateRandomization(t *testing.T) {
 func TestProvaGenerateOutputFileSimulation(t *testing.T) {
 	args := []string{
 		"--title", "Prova para Arquivo",
-		"--subject", "Geografia", // Assuming geography questions exist
+		"--subject", "Geografia",
 		"--num-questions", "1",
 		"--output-file", "minha_prova.txt",
 	}
 	output, err := executeProvaCommand(args...)
 	if err != nil {
-		t.Fatalf("Error during test with --output-file: %v\nOutput: %s", err, output)
+		t.Fatalf("Erro durante teste com --output-file: %v\nSaída: %s", err, output)
 	}
 
-	expectedMsg := "Simulando salvamento da prova em: minha_prova.txt"
+	expectedMsg := "Simulando salvamento da prova em: minha_prova.txt" // Message from generate.go
 	if !strings.Contains(output, expectedMsg) {
-		t.Errorf("Expected output to contain '%s', got: %s", expectedMsg, output)
+		t.Errorf("Saída esperada continha '%s', obteve: %s", expectedMsg, output)
 	}
-	// Also check that the full text rendering of the prova is NOT present
-	if strings.Contains(output, "--- Visualização da Prova (Formato Texto Simples) ---") {
-		t.Errorf("Expected full prova visualization to be absent when --output-file is used. Got: %s", output)
+	if strings.Contains(output, "--- Visualização da Prova (Formato Texto Simples) ---") { // Message from generate.go
+		t.Errorf("Esperado que a visualização completa da prova estivesse ausente quando --output-file é usado. Obteve: %s", output)
 	}
 }
 
