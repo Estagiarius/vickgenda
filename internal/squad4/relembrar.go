@@ -49,14 +49,34 @@ relembrar adicionar "Buscar provas na gráfica" 2024-07-23`,
 		tags := []string{"lembrete"}
 
 		// Call tarefa.CriarTarefa
-		// CriarTarefa(description string, dueDateStr string, priority int, tags []string) (string, error)
-		id, err := tarefa.CriarTarefa(finalDescription, data, priority, tags)
+		// CriarTarefa(description string, dueDateStr string, priority int, tagsStr string) (models.Task, error)
+		// The tags argument should be a comma-separated string.
+		_, err := tarefa.CriarTarefa(finalDescription, data, priority, strings.Join(tags, ","))
 		if err != nil {
 			log.Printf("Erro ao criar lembrete (tarefa): %v", err)
 			fmt.Println("Falha ao adicionar o lembrete. Verifique os logs para mais detalhes.")
 			return
 		}
-		fmt.Printf("Lembrete (ID: %s) adicionado com sucesso: '%s'\n", id, finalDescription)
+		// Assuming CriarTarefa now returns models.Task and error, and ID is part of models.Task
+		// If we need the ID, and CriarTarefa is changed to return models.Task, then:
+		// task, err := tarefa.CriarTarefa(finalDescription, data, priority, strings.Join(tags, ","))
+		// if err != nil { ... }
+		// fmt.Printf("Lembrete (ID: %s) adicionado com sucesso: '%s'\n", task.ID, finalDescription)
+		// For now, let's assume we don't need the ID directly in the success message or the returned type is still (string, error)
+		// but the build error indicates it expects a string for tags.
+		// The original error was `cannot use tags (variable of type []string) as string value in argument to tarefa.CriarTarefa`
+		// This implies the function signature for CriarTarefa expects a string for the tags argument.
+		// The return type of CriarTarefa (string, error) vs (models.Task, error) is a separate issue.
+		// Let's stick to fixing the tags argument type first based on the error.
+		// The previous build error did not complain about the return type `id`, so let's assume it's still (string, error)
+		// Correcting based on actual signature: CriarTarefa returns (models.Task, error)
+		task, err := tarefa.CriarTarefa(finalDescription, data, priority, strings.Join(tags, ","))
+		if err != nil {
+			log.Printf("Erro ao criar lembrete (tarefa): %v", err)
+			fmt.Println("Falha ao adicionar o lembrete. Verifique os logs para mais detalhes.")
+			return
+		}
+		fmt.Printf("Lembrete (ID: %s) adicionado com sucesso: '%s'\n", task.ID, finalDescription)
 		if data != "" {
 			fmt.Printf("Data: %s\n", data)
 		}
@@ -68,6 +88,7 @@ var relembrarListarCmd = &cobra.Command{
 	Short: "Lista todos os lembretes pendentes.",
 	Long:  `Exibe uma lista de todos os lembretes (tarefas com a tag 'lembrete') que estão pendentes.`,
 	Run: func(cmd *cobra.Command, args []string) {
+		var _ time.Time // Ensure time package is used
 		// ListarTarefas(status string, priority int, dueDate string, tag string, sortBy string, sortOrder string) ([]models.Task, error)
 		tasks, err := tarefa.ListarTarefas(string(models.TaskStatusPending), 0, "", "lembrete", "DueDate", "asc")
 		if err != nil {
@@ -89,7 +110,7 @@ var relembrarListarCmd = &cobra.Command{
 
 		for _, task := range tasks {
 			dueDateStr := ""
-			if !task.DueDate.IsZero() {
+			if !task.DueDate.Equal(time.Time{}) { // Explicitly use time.Time{}
 				dueDateStr = task.DueDate.Format("02/01/2006")
 			}
 			// Hora will be part of description if added, otherwise blank.

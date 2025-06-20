@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"vickgenda/internal/models"
+	"vickgenda-cli/internal/models"
 )
 
 // AulaStore defines the interface for lesson persistence.

@@ -1,33 +1,26 @@
 package cmd
 
 import (
-	"fmt"
-	"os" // Required for os.Exit
+	// "fmt" // No longer needed for db init error
+	// "os"  // No longer needed for db init error
 
-	"vickgenda-cli/cmd/bancoq"       // Direct import for adding command
-	"vickgenda-cli/cmd/prova"        // Import for prova.ProvaCmd
-	vickgendamain "vickgenda-cli/cmd/vickgenda" // Import for GetMainRootCmd
-	"vickgenda-cli/internal/db"      // Import for db.InitDB
+	"vickgenda-cli/cmd/bancoq" // Direct import for adding command
+	"vickgenda-cli/cmd/cli"    // Import the new cli package
+	"vickgenda-cli/cmd/prova"  // Import for prova.ProvaCmd
+	// "vickgenda-cli/internal/db" // No longer needed for db.InitDB here
 )
 
 func init() {
-	// Initialize the database
-	if err := db.InitDB(""); err != nil {
-		fmt.Fprintf(os.Stderr, "Erro ao inicializar o banco de dados: %v\n", err)
-		os.Exit(1)
-	}
+	// The database initialization is now handled in cmd/vickgenda/main.go's main().
 
-	// Get the main root command from cmd/vickgenda/main.go
-	mainRootCmd := vickgendamain.GetMainRootCmd()
+	// Get the main root command from cmd/cli/cli.go
+	mainRootCmd := cli.GetRootCmd()
 
 	// Add commands previously managed by this package's rootCmd
 	mainRootCmd.AddCommand(bancoq.BancoqCmd)
 	mainRootCmd.AddCommand(prova.ProvaCmd)
-	// If there were other commands added to the old rootCmd in this package, add them here.
-	// For example:
-	// mainRootCmd.AddCommand(anotherCmdFromThisPackage)
 }
 
-// Note: The local rootCmd, Execute(), and GetRootCmd() have been removed as per instructions.
+// Note: The local rootCmd, Execute(), and GetRootCmd() have been removed previously.
 // The application's entry point and root command management are now centralized
-// in cmd/vickgenda/main.go.
+// in the cli package and cmd/vickgenda/main.go.

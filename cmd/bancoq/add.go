@@ -54,7 +54,7 @@ func init() {
 
 func runAddQuestion(cmd *cobra.Command, args []string) {
 	// fmt.Println("DEBUG: runAddQuestion called") // DEBUG line removed
-	if err := db.InitDB(); err != nil {
+	if err := db.InitDB(""); err != nil {
 		fmt.Fprintf(os.Stderr, "Erro ao inicializar o banco de dados: %v\n", err)
 		os.Exit(1)
 	}

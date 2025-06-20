@@ -10,8 +10,8 @@ import (
 
 	"github.com/google/uuid"
 	_ "github.com/mattn/go-sqlite3" // Driver for sqlite3
-	"vickgenda/internal/models"
-	"vickgenda/internal/store"
+	"vickgenda-cli/internal/models"
+	"vickgenda-cli/internal/store"
 )
 
 // setupTermDB initializes an in-memory SQLite database and a TermStore for testing.
@@ -248,4 +248,4 @@ func TestMain(m *testing.M) {
 // It's good practice to import "strings" when using strings.Contains
 // Even if the linter doesn't complain, it makes dependencies explicit.
 // This was missing in the initial prompt but added here for completeness.
-import "strings"
+// import "strings" // strings is already imported above

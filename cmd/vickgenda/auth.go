@@ -1,9 +1,10 @@
-package main
+package vickgenda // Changed package name
 
 import (
 	"fmt"
 
 	"github.com/spf13/cobra"
+	"vickgenda-cli/cmd/cli" // Added import for cli package
 )
 
 // registerCmd representa o comando de registro
@@ -39,7 +40,7 @@ var logoutCmd = &cobra.Command{
 // A função init adiciona os comandos de autenticação ao rootCmd.
 // O Cobra descobre essas funções e as chama.
 func init() {
-	rootCmd.AddCommand(registerCmd)
-	rootCmd.AddCommand(loginCmd)
-	rootCmd.AddCommand(logoutCmd)
+	cli.GetRootCmd().AddCommand(registerCmd)
+	cli.GetRootCmd().AddCommand(loginCmd)
+	cli.GetRootCmd().AddCommand(logoutCmd)
 }

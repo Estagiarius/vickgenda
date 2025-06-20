@@ -11,8 +11,8 @@ import (
 
 	"github.com/google/uuid"
 	_ "github.com/mattn/go-sqlite3" // Driver for sqlite3
-	"vickgenda/internal/models"
-	"vickgenda/internal/store"
+	"vickgenda-cli/internal/models"
+	"vickgenda-cli/internal/store"
 )
 
 // setupAulaDB initializes an in-memory SQLite database and an AulaStore for testing.

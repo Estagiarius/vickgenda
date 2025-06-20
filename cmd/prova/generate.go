@@ -13,16 +13,16 @@ import (
 
 // Sample questions for simulation
 var sampleQuestions = []models.Question{
-	{ID: "q1", Subject: "Matemática", Text: "Quanto é 2+2?", Type: "multipla_escolha", Difficulty: "fácil", Topics: []string{"aritmética"}, Tags: []string{"básica"}, Options: []models.QuestionOption{{Text: "3", IsCorrect: false}, {Text: "4", IsCorrect: true}, {Text: "5", IsCorrect: false}}},
-	{ID: "q2", Subject: "Matemática", Text: "Quanto é 5*8?", Type: "multipla_escolha", Difficulty: "fácil", Topics: []string{"aritmética"}, Tags: []string{"básica"}, Options: []models.QuestionOption{{Text: "30", IsCorrect: false}, {Text: "40", IsCorrect: true}, {Text: "35", IsCorrect: false}}},
-	{ID: "q3", Subject: "História", Text: "Quem descobriu o Brasil?", Type: "dissertativa", Difficulty: "médio", Topics: []string{"descobrimentos"}, Tags: []string{"Brasil"}},
-	{ID: "q4", Subject: "Matemática", Text: "Qual a derivada de x^2?", Type: "dissertativa", Difficulty: "difícil", Topics: []string{"cálculo"}, Tags: []string{"avançada"}},
-	{ID: "q5", Subject: "Geografia", Text: "Qual a capital da França?", Type: "multipla_escolha", Difficulty: "fácil", Topics: []string{"europa"}, Tags: []string{"capitais"}, Options: []models.QuestionOption{{Text: "Londres", IsCorrect: false}, {Text: "Paris", IsCorrect: true}, {Text: "Madri", IsCorrect: false}}},
-	{ID: "q6", Subject: "Matemática", Text: "Resolva a equação: x + 5 = 10", Type: "dissertativa", Difficulty: "fácil", Topics: []string{"algebra"}, Tags: []string{"equação"}},
-	{ID: "q7", Subject: "História", Text: "Em que ano começou a Segunda Guerra Mundial?", Type: "multipla_escolha", Difficulty: "médio", Topics: []string{"guerras mundiais"}, Tags: []string{"século XX"}, Options: []models.QuestionOption{{Text: "1939", IsCorrect: true}, {Text: "1941", IsCorrect: false}, {Text: "1945", IsCorrect: false}}},
-	{ID: "q8", Subject: "Matemática", Text: "Qual o valor de Pi (aproximado)?", Type: "multipla_escolha", Difficulty: "médio", Topics: []string{"geometria"}, Tags: []string{"constantes"}, Options: []models.QuestionOption{{Text: "3.14", IsCorrect: true}, {Text: "3.12", IsCorrect: false}, {Text: "3.16", IsCorrect: false}}},
-	{ID: "q9", Subject: "Matemática", Text: "O que é um número primo?", Type: "dissertativa", Difficulty: "médio", Topics: []string{"teoria dos números"}, Tags: []string{"definição"}},
-	{ID: "q10", Subject: "Matemática", Text: "Qual a área de um círculo de raio r?", Type: "dissertativa", Difficulty: "difícil", Topics: []string{"geometria"}, Tags: []string{"fórmula"}},
+	{ID: "q1", Subject: "Matemática", QuestionText: "Quanto é 2+2?", QuestionType: models.QuestionTypeMultipleChoice, Difficulty: models.DifficultyEasy, Topic: "aritmética", Tags: []string{"básica"}, AnswerOptions: []string{"3", "4", "5"}, CorrectAnswers: []string{"4"}},
+	{ID: "q2", Subject: "Matemática", QuestionText: "Quanto é 5*8?", QuestionType: models.QuestionTypeMultipleChoice, Difficulty: models.DifficultyEasy, Topic: "aritmética", Tags: []string{"básica"}, AnswerOptions: []string{"30", "40", "35"}, CorrectAnswers: []string{"40"}},
+	{ID: "q3", Subject: "História", QuestionText: "Quem descobriu o Brasil?", QuestionType: models.QuestionTypeEssay, Difficulty: models.DifficultyMedium, Topic: "descobrimentos", Tags: []string{"Brasil"}, CorrectAnswers: []string{"Pedro Álvares Cabral"}},
+	{ID: "q4", Subject: "Matemática", QuestionText: "Qual a derivada de x^2?", QuestionType: models.QuestionTypeEssay, Difficulty: models.DifficultyHard, Topic: "cálculo", Tags: []string{"avançada"}, CorrectAnswers: []string{"2x"}},
+	{ID: "q5", Subject: "Geografia", QuestionText: "Qual a capital da França?", QuestionType: models.QuestionTypeMultipleChoice, Difficulty: models.DifficultyEasy, Topic: "europa", Tags: []string{"capitais"}, AnswerOptions: []string{"Londres", "Paris", "Madri"}, CorrectAnswers: []string{"Paris"}},
+	{ID: "q6", Subject: "Matemática", QuestionText: "Resolva a equação: x + 5 = 10", QuestionType: models.QuestionTypeEssay, Difficulty: models.DifficultyEasy, Topic: "algebra", Tags: []string{"equação"}, CorrectAnswers: []string{"x = 5"}},
+	{ID: "q7", Subject: "História", QuestionText: "Em que ano começou a Segunda Guerra Mundial?", QuestionType: models.QuestionTypeMultipleChoice, Difficulty: models.DifficultyMedium, Topic: "guerras mundiais", Tags: []string{"século XX"}, AnswerOptions: []string{"1939", "1941", "1945"}, CorrectAnswers: []string{"1939"}},
+	{ID: "q8", Subject: "Matemática", QuestionText: "Qual o valor de Pi (aproximado)?", QuestionType: models.QuestionTypeMultipleChoice, Difficulty: models.DifficultyMedium, Topic: "geometria", Tags: []string{"constantes"}, AnswerOptions: []string{"3.14", "3.12", "3.16"}, CorrectAnswers: []string{"3.14"}},
+	{ID: "q9", Subject: "Matemática", QuestionText: "O que é um número primo?", QuestionType: models.QuestionTypeEssay, Difficulty: models.DifficultyMedium, Topic: "teoria dos números", Tags: []string{"definição"}, CorrectAnswers: []string{"Um número natural maior que 1 que não possui outros divisores além de 1 e ele mesmo."}},
+	{ID: "q10", Subject: "Matemática", QuestionText: "Qual a área de um círculo de raio r?", QuestionType: models.QuestionTypeEssay, Difficulty: models.DifficultyHard, Topic: "geometria", Tags: []string{"fórmula"}, CorrectAnswers: []string{"πr²"}},
 }
 
 // generateCmd representa o comando para gerar uma nova prova.
@@ -61,13 +61,14 @@ var generateCmd = &cobra.Command{
 			if subjectFilter != "" && !strings.EqualFold(q.Subject, subjectFilter) {
 				match = false
 			}
-			if len(topicsFilter) > 0 && !containsAny(q.Topics, topicsFilter) {
+			// Changed q.Topics to q.Topic (string) and adapted containsAny to work with string topic
+			if len(topicsFilter) > 0 && !contains(topicsFilter, q.Topic) { // Assuming topicsFilter expects single topic match now
 				match = false
 			}
 			if len(difficultiesFilter) > 0 && !contains(difficultiesFilter, q.Difficulty) {
 				match = false
 			}
-			if len(typesFilter) > 0 && !contains(typesFilter, q.Type) {
+			if len(typesFilter) > 0 && !contains(typesFilter, q.QuestionType) { // Changed q.Type to q.QuestionType
 				match = false
 			}
 			if len(tagsFilter) > 0 && !containsAny(q.Tags, tagsFilter) {
@@ -214,12 +215,10 @@ var generateCmd = &cobra.Command{
 				// Em um sistema real, buscaria do DB
 				originalQuestion := findQuestionByID(qID, sampleQuestions)
 				if originalQuestion != nil {
-					questionText = originalQuestion.Text
-					questionType = originalQuestion.Type
-					if originalQuestion.Type == "multipla_escolha" {
-						for _, opt := range originalQuestion.Options {
-							options = append(options, opt.Text)
-						}
+					questionText = originalQuestion.QuestionText // Changed .Text to .QuestionText
+					questionType = originalQuestion.QuestionType // Changed .Type to .QuestionType
+					if originalQuestion.QuestionType == models.QuestionTypeMultipleChoice { // Changed .Type to .QuestionType
+						options = originalQuestion.AnswerOptions // Changed .Options to .AnswerOptions (it's already []string)
 					}
 				} else {
 					questionText = "Texto da questão não encontrado (ID: " + qID + ")"

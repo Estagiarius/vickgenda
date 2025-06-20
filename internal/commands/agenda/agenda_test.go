@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 	"time"
-	"vickgenda/internal/models"
+	"vickgenda-cli/internal/models"
 )
 
 // Helper to check if a slice of events contains an event with a specific ID
@@ -251,4 +251,3 @@ func TestRemoverEvento(t *testing.T) {
 		}
 	})
 }
-```

@@ -5,8 +5,9 @@ import (
 	"regexp"
 	"strings"
 	"testing"
-	// No direct cobra import needed here if ProvaCmd is globally accessible
-	// "vickgenda-cli/internal/models" // Not directly used in test logic, but command uses it
+	"github.com/spf13/cobra" // Moved from bottom
+	"github.com/spf13/pflag"  // Moved from bottom
+	"vickgenda-cli/internal/models" // Moved from bottom (and uncommented)
 )
 
 // executeProvaListCommand executes the 'prova list' command with given arguments
@@ -217,8 +218,4 @@ func countTableRows(output string) int {
 }
 
 // Import pflag for resetting flags
-import (
-	"github.com/spf13/cobra"
-	"github.com/spf13/pflag"
-	"vickgenda-cli/internal/models"
-)
+// Moved to top import block

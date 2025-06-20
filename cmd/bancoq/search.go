@@ -62,7 +62,7 @@ func init() {
 }
 
 func runSearchQuestions(cmd *cobra.Command, args []string) {
-	if err := db.InitDB(); err != nil {
+	if err := db.InitDB(""); err != nil {
 		fmt.Fprintf(os.Stderr, "Erro ao inicializar o banco de dados: %v\n", err)
 		os.Exit(1)
 	}

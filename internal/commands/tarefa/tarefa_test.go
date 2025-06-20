@@ -3,7 +3,7 @@ package tarefa
 import (
 	"testing"
 	"time"
-	"vickgenda/internal/models"
+	"vickgenda-cli/internal/models"
 	"strings"
 )
 
@@ -260,5 +260,3 @@ func TestRemoverTarefa(t *testing.T) {
 		}
 	})
 }
-
-```

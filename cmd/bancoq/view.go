@@ -1,12 +1,12 @@
 package bancoq
 
 import (
-	"database/sql"
-	"errors"
+	"database/sql" // Keep one
+	"errors"       // Keep one
 	"fmt"
 	"os"
 	"strings"
-	"time"
+	// "time" // Stays commented out
 
 	"vickgenda-cli/internal/db"
 	"vickgenda-cli/internal/models"
@@ -30,7 +30,7 @@ func init() {
 }
 
 func runViewQuestion(cmd *cobra.Command, args []string) {
-	if err := db.InitDB(); err != nil { // Ensure DB is initialized
+	if err := db.InitDB(""); err != nil { // Ensure DB is initialized
 		fmt.Fprintf(os.Stderr, "Erro ao inicializar o banco de dados: %v\n", err)
 		os.Exit(1)
 	}
@@ -104,17 +104,19 @@ func runViewQuestion(cmd *cobra.Command, args []string) {
 	if question.Author != "" {
 		data = append(data, []string{"Autor", question.Author})
 	}
-	if question.Year > 0 {
-		data = append(data, []string{"Ano", fmt.Sprintf("%d",question.Year)})
-	}
-
+	// Year is not a field in models.Question, removing this line.
+	// if question.Year > 0 {
+	// 	data = append(data, []string{"Ano", fmt.Sprintf("%d",question.Year)})
+	// }
 
 	data = append(data, []string{"Criada em", question.CreatedAt.Format("02/01/2006 15:04:05 MST")})
-	data = append(data, []string{"Atualizada em", question.UpdatedAt.Format("02/01/2006 15:04:05 MST")})
+	// UpdatedAt is not a field in models.Question
+	// data = append(data, []string{"Atualizada em", question.UpdatedAt.Format("02/01/2006 15:04:05 MST")})
 	data = append(data, []string{"Usada pela Última Vez", models.FormatLastUsedAt(question.LastUsedAt)})
-	data = append(data, []string{"Contagem de Uso", fmt.Sprintf("%d", question.UsageCount)})
-	data = append(data, []string{"Pública", fmt.Sprintf("%t", question.IsPublic)})
-
+	// UsageCount is not a field in models.Question
+	// data = append(data, []string{"Contagem de Uso", fmt.Sprintf("%d", question.UsageCount)})
+	// IsPublic is not a field in models.Question
+	// data = append(data, []string{"Pública", fmt.Sprintf("%t", question.IsPublic)})
 
 	for _, v := range data {
         table.Append(v)

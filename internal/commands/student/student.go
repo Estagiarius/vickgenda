@@ -5,8 +5,8 @@ import (
 	"errors"
 	"fmt"
 
-	"vickgenda/internal/models"
-	"vickgenda/internal/store" // Assuming store package is accessible
+	"vickgenda-cli/internal/models"
+	"vickgenda-cli/internal/store" // Assuming store package is accessible
 )
 
 var ActiveStudentStore store.StudentStore

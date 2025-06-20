@@ -1,9 +1,10 @@
-package main
+package vickgenda // Changed package name
 
 import (
 	"fmt"
 
 	"github.com/spf13/cobra"
+	"vickgenda-cli/cmd/cli" // Added import for cli package
 )
 
 // setupCmd representa o comando de configuração
@@ -20,5 +21,5 @@ conexões de banco de dados (se houver) e preferências padrão.`, // Traduzido
 
 // A função init adiciona o setupCmd ao rootCmd
 func init() {
-	rootCmd.AddCommand(setupCmd)
+	cli.GetRootCmd().AddCommand(setupCmd)
 }

@@ -5,7 +5,7 @@ import (
 	"testing"
 	// "time" // Not used directly in these tests after all
 
-	"vickgenda/internal/models"
+	"vickgenda-cli/internal/models"
 )
 
 func TestCriarAula(t *testing.T) {

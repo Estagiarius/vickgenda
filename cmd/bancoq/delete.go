@@ -28,7 +28,7 @@ func init() {
 }
 
 func runDeleteQuestion(cmd *cobra.Command, args []string) {
-	if err := db.InitDB(); err != nil { // Ensure DB is initialized
+	if err := db.InitDB(""); err != nil { // Ensure DB is initialized
 		fmt.Fprintf(os.Stderr, "Erro ao inicializar o banco de dados: %v\n", err)
 		os.Exit(1)
 	}
@@ -41,15 +41,15 @@ func runDeleteQuestion(cmd *cobra.Command, args []string) {
 		// Primeiro, tentar buscar a questão para exibir seu texto (ou parte dele) na confirmação.
 		// Isso torna a confirmação mais segura para o usuário.
 		var questionTextPreview string
-		q, err := db.GetQuestionByID(questionID) // Supondo que esta função exista e retorne a questão ou um erro.
-		if err != nil || q == nil {
+		q, err := db.GetQuestion(questionID) // Changed from GetQuestionByID to GetQuestion
+		if err != nil { // q will be zero value of models.Question on error
 			// Se não encontrar ou der erro, ainda perguntar, mas sem o texto.
 			questionTextPreview = fmt.Sprintf("com ID '%s' (detalhes não puderam ser carregados)", questionID)
 		} else {
-			if len(q.Text) > 50 { // Limitar o preview do texto
-				questionTextPreview = fmt.Sprintf("'%s...' (ID: %s)", q.Text[:50], questionID)
+			if len(q.QuestionText) > 50 { // Limitar o preview do texto. Changed q.Text to q.QuestionText
+				questionTextPreview = fmt.Sprintf("'%s...' (ID: %s)", q.QuestionText[:50], questionID)
 			} else {
-				questionTextPreview = fmt.Sprintf("'%s' (ID: %s)", q.Text, questionID)
+				questionTextPreview = fmt.Sprintf("'%s' (ID: %s)", q.QuestionText, questionID)
 			}
 		}
 

@@ -8,8 +8,8 @@ import (
 	"sync"
 	"time"
 
-	"vickgenda/internal/models"
-	"vickgenda/internal/commands/tarefa"
+	"vickgenda-cli/internal/models"
+	"vickgenda-cli/internal/commands/tarefa"
 )
 
 // dateTimeLayoutRotina define o formato para parsing de data/hora para rotinas.
@@ -340,4 +340,3 @@ func GerarTarefasFromModelo(modeloID string, dataBaseStr string) ([]models.Task,
 
 	return []models.Task{novaTarefa}, nil
 }
-```
