@@ -1,23 +1,19 @@
 package aula
 
 import (
+	"database/sql"
 	"errors"
 	"fmt"
-	"strings"
 	"time"
 
 	"vickgenda/internal/models"
+	"vickgenda/internal/store"
 )
 
-// Simulação de armazenamento em memória para aulas
-var lessonsStore = make(map[string]models.Lesson)
-var nextLessonID = 1
+var ActiveAulaStore store.AulaStore
 
-// generateID gera um ID simples e único para novas aulas.
-func generateID() string {
-	id := fmt.Sprintf("aula%03d", nextLessonID)
-	nextLessonID++
-	return id
+func InitializeAulaStore(db *sql.DB) {
+	ActiveAulaStore = store.NewSQLiteAulaStore(db)
 }
 
 // CriarAula adiciona uma nova aula.
@@ -34,16 +30,15 @@ func CriarAula(disciplina, topico, dataStr, horaStr, turma, plano, obs string) (
 
 	if horaStr != "" {
 		horaLayout := "15:04"
-		aulaHora, err := time.Parse(horaLayout, horaStr)
-		if err != nil {
+		aulaHora, errHora := time.Parse(horaLayout, horaStr)
+		if errHora != nil {
 			return models.Lesson{}, fmt.Errorf("formato de hora inválido: %s. Use hh:mm", horaStr)
 		}
 		aulaData = time.Date(aulaData.Year(), aulaData.Month(), aulaData.Day(), aulaHora.Hour(), aulaHora.Minute(), 0, 0, time.Local)
 	}
 
-	newID := generateID()
 	lesson := models.Lesson{
-		ID:           newID,
+		// ID é gerado pelo store
 		Subject:      disciplina,
 		Topic:        topico,
 		Date:         aulaData,
@@ -51,135 +46,109 @@ func CriarAula(disciplina, topico, dataStr, horaStr, turma, plano, obs string) (
 		Plan:         plano,
 		Observations: obs,
 	}
-	lessonsStore[newID] = lesson
-	return lesson, nil
+
+	if ActiveAulaStore == nil {
+		return models.Lesson{}, errors.New("AulaStore não inicializado")
+	}
+	savedLesson, err := ActiveAulaStore.SaveLesson(lesson)
+	if err != nil {
+		return models.Lesson{}, fmt.Errorf("erro ao criar aula: %w", err)
+	}
+	return savedLesson, nil
 }
 
 // ListarAulas retorna uma lista de aulas, com filtros opcionais.
 func ListarAulas(disciplina, turma, periodo, mes, ano string) ([]models.Lesson, error) {
-	var result []models.Lesson
-	var periodoInicio, periodoFim time.Time
-	var err error
-
-	if periodo != "" {
-		partes := strings.Split(periodo, ":")
-		if len(partes) != 2 {
-			return nil, errors.New("formato de período inválido. Use <data_inicio>:<data_fim>")
-		}
-		layout := "02-01-2006"
-		periodoInicio, err = time.Parse(layout, partes[0])
-		if err != nil {
-			return nil, fmt.Errorf("formato de data de início inválido: %s", partes[0])
-		}
-		periodoFim, err = time.Parse(layout, partes[1])
-		if err != nil {
-			return nil, fmt.Errorf("formato de data de fim inválido: %s", partes[1])
-		}
-		periodoFim = periodoFim.Add(23*time.Hour + 59*time.Minute + 59*time.Second)
+	if ActiveAulaStore == nil {
+		return nil, errors.New("AulaStore não inicializado")
 	}
-
-	var mesTime time.Time
-	if mes != "" {
-		layout := "01-2006" // mm-aaaa
-		mesTime, err = time.Parse(layout, mes)
-		if err != nil {
-			return nil, fmt.Errorf("formato de mês inválido: %s. Use mm-aaaa", mes)
-		}
+	// A lógica de parsing de datas para periodo, mes, ano é feita no store
+	lessons, err := ActiveAulaStore.ListLessons(disciplina, turma, periodo, mes, ano)
+	if err != nil {
+		return nil, fmt.Errorf("erro ao listar aulas: %w", err)
 	}
-
-    var anoTime time.Time
-    if ano != "" {
-        layout := "2006" // aaaa
-        anoTime, err = time.Parse(layout, ano)
-        if err != nil {
-            return nil, fmt.Errorf("formato de ano inválido: %s. Use aaaa", ano)
-        }
-    }
-
-	for _, lesson := range lessonsStore {
-		match := true
-		if disciplina != "" && !strings.EqualFold(lesson.Subject, disciplina) {
-			match = false
-		}
-		if turma != "" && !strings.EqualFold(lesson.ClassID, turma) {
-			match = false
-		}
-		if periodo != "" && (lesson.Date.Before(periodoInicio) || lesson.Date.After(periodoFim)) {
-			match = false
-		}
-		if mes != "" && (lesson.Date.Month() != mesTime.Month() || lesson.Date.Year() != mesTime.Year()) {
-			match = false
-		}
-        if ano != "" && lesson.Date.Year() != anoTime.Year() {
-            match = false
-        }
-		if match {
-			result = append(result, lesson)
-		}
-	}
-	return result, nil
+	return lessons, nil
 }
 
 // VerAula retorna os detalhes de uma aula específica pelo ID.
 func VerAula(id string) (models.Lesson, error) {
-	lesson, found := lessonsStore[id]
-	if !found {
-		return models.Lesson{}, fmt.Errorf("aula com ID '%s' não encontrada", id)
+	if ActiveAulaStore == nil {
+		return models.Lesson{}, errors.New("AulaStore não inicializado")
+	}
+	lesson, err := ActiveAulaStore.GetLessonByID(id)
+	if err != nil {
+		// O store já formata o erro para sql.ErrNoRows
+		return models.Lesson{}, fmt.Errorf("erro ao buscar aula por ID '%s': %w", id, err)
 	}
 	return lesson, nil
 }
 
 // EditarPlanoAula atualiza o plano e/ou observações de uma aula existente.
 func EditarPlanoAula(id, novoPlano, novasObservacoes string) (models.Lesson, error) {
-	lesson, found := lessonsStore[id]
-	if !found {
-		return models.Lesson{}, fmt.Errorf("aula com ID '%s' não encontrada para edição", id)
+	if id == "" {
+		return models.Lesson{}, errors.New("ID da aula é obrigatório para edição")
+	}
+	// Conforme subtask: "if novoPlano and novasObservacoes are both empty ...
+	// the command should return an error before calling the store."
+	// O comportamento exato de "vazio" pode depender se as flags CLI
+	// distinguem entre "não fornecido" e "fornecido como string vazia".
+	// Assumindo que se chegam como "" aqui, significa que não foram fornecidos ou foram explicitamente setados para vazio.
+	// A lógica original da store (in-memory) permitia setar para vazio.
+	// A nova store UpdateLessonPlan também permite. A questão é se o *comando* deve impedir.
+	// A descrição do subtask diz "if ... both empty ... return an error before calling the store"
+	// No entanto, a lógica original do EditarPlanoAula in-memory tinha `intentToChange`
+	// e retornava erro se AMBOS `intentToChange` fossem false. Se um deles fosse `true` (porque a string não era vazia),
+	// ele prosseguia, mesmo que a outra string fosse vazia (o que significaria limpar o campo).
+	// Para manter a possibilidade de limpar um campo passando string vazia,
+	// o erro só deve ocorrer se NENHUMA alteração for de fato passada (e.g. usuário não passou flags).
+	// Se o usuário passa `aula editar-plano <id> --plano ""` ele quer limpar o plano.
+	// O teste "nenhuma_alteracao" no aula_test.go passa "" para ambos, esperando um erro.
+	// Portanto, a condição de erro é se AMBOS são "" e o usuário não passou as flags.
+	// Se o usuário passou as flags mas com valor "", isso significa limpar.
+	// A CLI normalmente não passaria "" se a flag não fosse usada.
+	// Esta função não sabe se as flags foram usadas. Assumimos que "" significa "não alterar este campo específico"
+	// a menos que a intenção seja limpar.
+	// A store.UpdateLessonPlan já faz GetLessonByID primeiro.
+	// A store.UpdateLessonPlan atualiza os campos e depois faz GetLessonByID.
+	// A checagem de "nenhuma alteração fornecida" deve ser feita aqui se a intenção é
+	// que a store não seja chamada desnecessariamente.
+	// O problema é que a store não sabe se "" significa "não alterar" ou "alterar para vazio".
+	// O store.UpdateLessonPlan atualiza para o valor passado.
+	// A lógica original era: if novoPlano != "" -> intentToChangePlano = true.
+	// Erro se !intentToChangePlano && !intentToChangeObs.
+	// Isso significa que se as strings são vazias, não há intenção de mudança.
+	// Vou manter essa lógica: se as strings recebidas são vazias, não há intenção de mudança.
+	if novoPlano == "" && novasObservacoes == "" {
+		// Para ser mais preciso, precisaríamos saber se as flags foram de fato passadas como vazias
+		// ou não foram passadas de todo. Assumindo que "" aqui significa "não foi passada flag para este campo".
+		return models.Lesson{}, errors.New("nenhuma alteração fornecida para plano ou observações")
 	}
 
-	// These flags track if an actual change was intended by passing a non-empty string.
-	intentToChangePlano := false
-	if novoPlano != "" {
-		intentToChangePlano = true
+	if ActiveAulaStore == nil {
+		return models.Lesson{}, errors.New("AulaStore não inicializado")
 	}
 
-	intentToChangeObs := false
-	if novasObservacoes != "" {
-		intentToChangeObs = true
+	// O método ActiveAulaStore.UpdateLessonPlan lida com a busca, atualização e retorno da aula atualizada.
+	// Ele também lida com o caso de a aula não ser encontrada.
+	updatedLesson, err := ActiveAulaStore.UpdateLessonPlan(id, novoPlano, novasObservacoes)
+	if err != nil {
+		return models.Lesson{}, fmt.Errorf("erro ao editar plano da aula ID '%s': %w", id, err)
 	}
-
-	// If neither field was intended to be changed (i.e., both inputs were empty strings,
-	// which is how the test "nenhuma_alteracao" signals "no change desired for these fields"),
-	// then return an error.
-	if !intentToChangePlano && !intentToChangeObs {
-		return lesson, errors.New("nenhuma alteração fornecida para plano ou observações")
-	}
-
-	// Apply changes if intended
-	if intentToChangePlano {
-		lesson.Plan = novoPlano // Set to new value (could be empty string to clear it)
-	}
-	if intentToChangeObs {
-		lesson.Observations = novasObservacoes // Set to new value
-	}
-
-	lessonsStore[id] = lesson
-	return lesson, nil
+	return updatedLesson, nil
 }
 
 // ExcluirAula remove uma aula do armazenamento.
-// Conforme especificação: vickgenda aula excluir <id_aula> [--confirmar]
-// A flag --confirmar será tratada pela CLI. Esta função apenas exclui.
 func ExcluirAula(id string) error {
-    _, found := lessonsStore[id]
-    if !found {
-        return fmt.Errorf("aula com ID '%s' não encontrada para exclusão", id)
-    }
-    delete(lessonsStore, id)
-    return nil
-}
-
-// LimparStoreAulas é uma função auxiliar para testes, para limpar o map entre testes.
-func LimparStoreAulas() {
-    lessonsStore = make(map[string]models.Lesson)
-    nextLessonID = 1
+	if id == "" {
+		return errors.New("ID da aula é obrigatório para exclusão")
+	}
+	if ActiveAulaStore == nil {
+		return errors.New("AulaStore não inicializado")
+	}
+	err := ActiveAulaStore.DeleteLesson(id)
+	if err != nil {
+		// O store já pode formatar o erro para sql.ErrNoRows
+		return fmt.Errorf("erro ao excluir aula ID '%s': %w", id, err)
+	}
+	return nil
 }
