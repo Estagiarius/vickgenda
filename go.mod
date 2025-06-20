@@ -1,6 +1,6 @@
 module vickgenda-cli
 
-go 1.24.3
+go 1.18
 
 require (
 	github.com/AlecAivazis/survey/v2 v2.3.7
@@ -38,3 +38,6 @@ require (
 	golang.org/x/term v0.0.0-20210927222741-03fcf44c2211 // indirect
 	golang.org/x/text v0.4.0 // indirect
 )
+
+replace golang.org/x/sys => golang.org/x/sys v0.10.0
+replace golang.org/x/sync => golang.org/x/sync v0.1.0

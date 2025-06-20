@@ -2,11 +2,11 @@ package cli
 
 import (
 	"fmt"
-	"os"
+	// "os" // Removed as unused
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/spf13/cobra"
-	"vickgenda-cli/internal/db"     // For InitDB in root.go
+	// "vickgenda-cli/internal/db"     // Removed as unused (InitDB moved to main.go)
 	"vickgenda-cli/internal/ids"    // For resolveCmd
 	"vickgenda-cli/internal/squad4" // For DashboardCmd
 	// "vickgenda-cli/internal/tui" // Will be needed if TUI logic is separate
@@ -87,10 +87,11 @@ func Execute() error {
 	// The InitDB call from cmd/root.go's init() needs to happen before Execute.
 	// It's better to do this explicitly in main.go's main().
 	// For now, I'll add it here, but this might need revisiting.
-	if err := db.InitDB(""); err != nil {
-		fmt.Fprintf(os.Stderr, "Erro ao inicializar o banco de dados antes de Execute(): %v\n", err)
-		os.Exit(1) // Or return the error to be handled by main
-	}
+	// The db.InitDB("") call was moved to main.go's main() function.
+	// if err := db.InitDB(""); err != nil {
+	// 	fmt.Fprintf(os.Stderr, "Erro ao inicializar o banco de dados antes de Execute(): %v\n", err)
+	// 	os.Exit(1) // Or return the error to be handled by main
+	// }
 	return rootCmd.Execute()
 }
 
@@ -109,8 +110,10 @@ type model struct {
 // initialModel creates and returns the initial state of the main TUI model.
 func initialModel() model {
 	return model{
+		textInput: "Vickgenda TUI - Digite algo ou Ctrl+C para sair.", // Initial text
 		// statusBar: tui.NewStatusBarModel(),
 		isTuiMode: true,
+		cursor:    0, // Initialize cursor
 	}
 }
 
@@ -126,12 +129,16 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	if !m.isTuiMode {
 		return m, nil
 	}
-	// Simplified update logic
+
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
-		switch msg.String() {
-		case "ctrl+c", "esc":
+		switch msg.Type {
+		case tea.KeyCtrlC, tea.KeyEsc:
 			return m, tea.Quit
+		case tea.KeyRunes, tea.KeySpace: // Handle printable characters and space
+			m.textInput += string(msg.Runes) // Append typed character
+			// A more sophisticated input would handle cursor position, backspace, etc.
+		// Add other key handling as needed (e.g., tea.KeyBackspace, tea.KeyEnter)
 		}
 	}
 	return m, nil
@@ -141,7 +148,10 @@ func (m model) View() string {
 	if !m.isTuiMode {
 		return m.modeOutput
 	}
-	return fmt.Sprintf("Olá, TUI (Ctrl+C para sair)\n%s", m.textInput) // Simplified view
+	// Display current textInput. A real TUI would have a more structured view.
+	return fmt.Sprintf("%s\n\n%s\n\n(Ctrl+C ou Esc para sair)",
+		"Bem-vindo ao Vickgenda TUI!",
+		m.textInput)
 }
 
 // Update RunE in rootCmd to use the local TUI model and functions
