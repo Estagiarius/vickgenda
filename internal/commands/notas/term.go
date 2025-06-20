@@ -1,31 +1,19 @@
 package notas
 
 import (
+	"database/sql"
 	"errors"
 	"fmt"
-	"sort"
 	"time"
 
 	"vickgenda/internal/models"
+	"vickgenda/internal/store"
 )
 
-// Simulação de armazenamento em memória para Termos (Bimestres)
-// Usaremos um slice para facilitar a ordenação por data, e um map para acesso rápido por ID.
-var termsStore = make(map[string]models.Term)
-var termList = []models.Term{} // Mantém uma lista ordenada para listagem
-var nextTermID = 1
+var ActiveTermStore store.TermStore
 
-func generateTermID() string {
-	id := fmt.Sprintf("term%03d", nextTermID)
-	nextTermID++
-	return id
-}
-
-// LimparStoreTermos é uma função auxiliar para testes.
-func LimparStoreTermos() {
-	termsStore = make(map[string]models.Term)
-	termList = []models.Term{}
-	nextTermID = 1
+func InitializeTermStore(db *sql.DB) {
+	ActiveTermStore = store.NewSQLiteTermStore(db)
 }
 
 // ConfigurarBimestreAdicionar adiciona um novo bimestre (Term).
@@ -49,50 +37,22 @@ func ConfigurarBimestreAdicionar(anoLetivo int, nome, inicioStr, fimStr string) 
 		return models.Term{}, errors.New("data de fim não pode ser anterior à data de início")
 	}
 
-	// Adicionar validação de ano letivo (se dataInicio e dataFim pertencem ao anoLetivo)
-	if dataInicio.Year() != anoLetivo || dataFim.Year() != anoLetivo {
-		// Esta validação pode ser flexibilizada dependendo das regras de negócio (bimestres que cruzam anos)
-		// Por ora, vamos manter estrito ao ano.
-		// return models.Term{}, fmt.Errorf("as datas do bimestre (início: %d, fim: %d) não correspondem ao ano letivo fornecido (%d)", dataInicio.Year(), dataFim.Year(), anoLetivo)
-	}
+	// Validação de ano letivo agora é tratada implicitamente pelo store ao usar StartDate.Year()
+	// A validação de sobreposição de datas e unicidade de nome também é feita pelo store.
 
-
-	// Validação de sobreposição (simplificada: apenas checa se o nome já existe no ano)
-	// Uma validação completa de sobreposição de datas seria mais complexa.
-	for _, existingTerm := range termList {
-		// Assumindo que o nome do bimestre deve ser único por ano.
-		// A especificação em avaliacao_spec.md diz: "O nome do período deve ser único dentro de um mesmo ano letivo."
-		// E "Não deve haver sobreposição de datas entre períodos do mesmo ano letivo."
-		// A checagem de nome é mais simples de implementar agora.
-		// A checagem de sobreposição de datas: (StartA <= EndB) and (EndA >= StartB)
-		if existingTerm.Name == nome && existingTerm.StartDate.Year() == anoLetivo { // Simplificando para checar ano da data de início
-			return models.Term{}, fmt.Errorf("bimestre com nome '%s' já existe para o ano %d", nome, anoLetivo)
-		}
-        // Checagem de sobreposição de datas
-        // (dataInicio ANTES OU IGUAL existingTerm.EndDate) E (dataFim DEPOIS OU IGUAL existingTerm.StartDate)
-        if dataInicio.Before(existingTerm.EndDate.Add(time.Nanosecond)) && dataFim.After(existingTerm.StartDate.Add(-time.Nanosecond)) && existingTerm.StartDate.Year() == anoLetivo {
-             return models.Term{}, fmt.Errorf("o período de %s a %s se sobrepõe com o bimestre existente '%s' (%s a %s) no ano %d", inicioStr, fimStr, existingTerm.Name, existingTerm.StartDate.Format(layout), existingTerm.EndDate.Format(layout), anoLetivo)
-        }
-	}
-
-
-	newID := generateTermID()
 	term := models.Term{
-		ID:        newID,
+		// ID é gerado pelo store
 		Name:      nome,
 		StartDate: dataInicio,
 		EndDate:   dataFim,
-		// Year: anoLetivo, // Se adicionarmos Year à struct Term
 	}
 
-	termsStore[newID] = term
-	termList = append(termList, term)
-	// Manter a lista ordenada por data de início
-	sort.Slice(termList, func(i, j int) bool {
-		return termList[i].StartDate.Before(termList[j].StartDate)
-	})
+	savedTerm, err := ActiveTermStore.SaveTerm(term)
+	if err != nil {
+		return models.Term{}, fmt.Errorf("erro ao salvar bimestre: %w", err)
+	}
 
-	return term, nil
+	return savedTerm, nil
 }
 
 // ConfigurarBimestreListar lista os bimestres (Terms) para um ano letivo.
@@ -101,23 +61,25 @@ func ConfigurarBimestreListar(anoLetivo int) ([]models.Term, error) {
 	if anoLetivo == 0 {
 		return nil, errors.New("ano letivo é obrigatório para listar bimestres")
 	}
-	var result []models.Term
-	for _, term := range termList {
-		// Considerar se o Term struct terá um campo Year ou se filtramos pelo ano da StartDate
-		if term.StartDate.Year() == anoLetivo || term.EndDate.Year() == anoLetivo { // Permite bimestres que cruzam a virada do ano mas pertencem ao ano letivo
-			result = append(result, term)
-		}
+	if ActiveTermStore == nil {
+		return nil, errors.New("TermStore não inicializado")
 	}
-	// A termList já está ordenada, então result também estará se não houver filtro complexo de ano.
-	// Se filtrarmos estritamente por StartDate.Year() == anoLetivo, a ordem é mantida.
-	return result, nil
+	terms, err := ActiveTermStore.ListTermsByYear(anoLetivo)
+	if err != nil {
+		return nil, fmt.Errorf("erro ao listar bimestres para o ano %d: %w", anoLetivo, err)
+	}
+	return terms, nil
 }
 
 // GetTermByID busca um Term pelo ID. Auxiliar para outros pacotes.
 func GetTermByID(id string) (models.Term, error) {
-    term, found := termsStore[id]
-    if !found {
-        return models.Term{}, fmt.Errorf("termo (bimestre) com ID '%s' não encontrado", id)
-    }
-    return term, nil
+	if ActiveTermStore == nil {
+		return models.Term{}, errors.New("TermStore não inicializado")
+	}
+	term, err := ActiveTermStore.GetTermByID(id)
+	if err != nil {
+		// O store já retorna um erro formatado para sql.ErrNoRows
+		return models.Term{}, fmt.Errorf("erro ao buscar bimestre por ID '%s': %w", id, err)
+	}
+	return term, nil
 }
