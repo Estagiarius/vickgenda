@@ -13,27 +13,30 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var searchFlags struct {
+// searchCommandFlags holds flag values specifically for the search command.
+// It mirrors listCommandFlags for consistency in filtering, pagination, and sorting.
+var searchCommandFlags struct {
 	Subject      string
 	Topic        string
 	Difficulty   string
 	Type         string
 	Author       string
-	Tags         []string // For --tag filter
+	Tags         []string
 	Limit        int
 	Page         int
 	SortBy       string
 	Order        string
-	SearchFields []string // For --field flag
+	SearchFields []string // Specific to search: fields to search within
 }
 
 var bancoqSearchCmd = &cobra.Command{
 	Use:   "search <TERMO_DE_BUSCA>",
 	Short: "Busca questões por palavras-chave no banco de dados",
 	Long: `Realiza uma busca textual por questões no banco de dados utilizando as palavras-chave fornecidas.
-Por padrão, a busca é realizada nos campos de texto principais da questão (texto, disciplina, tópico).
-Utilize a flag --field para especificar outros campos ou 'all' para todos os campos textuais indexados.
-Filtros adicionais por disciplina, tópico, dificuldade, etc., podem ser aplicados.`,
+A busca pode ser direcionada a campos específicos usando a flag --field.
+Filtros adicionais (disciplina, tópico, etc.) podem ser combinados com o termo de busca.
+Exemplo:
+  vickgenda bancoq search "teorema de pitágoras" --subject "Matemática" --field "question_text" --field "topic"`,
 	Args: cobra.ExactArgs(1), // Requer exatamente um argumento para o termo de busca
 	Run:  runSearchQuestions,
 }
@@ -41,31 +44,39 @@ Filtros adicionais por disciplina, tópico, dificuldade, etc., podem ser aplicad
 func init() {
 	BancoqCmd.AddCommand(bancoqSearchCmd)
 
-	// Standard filter flags (same as list)
-	bancoqSearchCmd.Flags().StringVar(&searchFlags.Subject, "subject", "", "Filtrar por disciplina (ex: \"Matemática\")")
-	bancoqSearchCmd.Flags().StringVar(&searchFlags.Topic, "topic", "", "Filtrar por tópico (ex: \"Álgebra Linear\")")
-	bancoqSearchCmd.Flags().StringVar(&searchFlags.Difficulty, "difficulty", "", "Filtrar por dificuldade (valores: easy, medium, hard)")
-	bancoqSearchCmd.Flags().StringVar(&searchFlags.Type, "type", "", "Filtrar por tipo de questão (valores: multiple_choice, true_false, essay, short_answer)")
-	bancoqSearchCmd.Flags().StringVar(&searchFlags.Author, "author", "", "Filtrar por autor da questão")
-	bancoqSearchCmd.Flags().StringSliceVar(&searchFlags.Tags, "tag", []string{}, "Filtrar por tag específica (correspondência exata na lista de tags da questão; pode ser usado múltiplas vezes)")
+	// Standard filter flags (mirrors list.go for consistency)
+	bancoqSearchCmd.Flags().StringVar(&searchCommandFlags.Subject, "subject", "", "Filtrar por disciplina")
+	bancoqSearchCmd.Flags().StringVar(&searchCommandFlags.Topic, "topic", "", "Filtrar por tópico")
+	bancoqSearchCmd.Flags().StringVar(&searchCommandFlags.Difficulty, "difficulty", "", fmt.Sprintf("Filtrar por dificuldade (%s, %s, %s)", models.DifficultyEasy, models.DifficultyMedium, models.DifficultyHard))
+	bancoqSearchCmd.Flags().StringVar(&searchCommandFlags.Type, "type", "", fmt.Sprintf("Filtrar por tipo (%s, %s, %s, %s)", models.QuestionTypeMultipleChoice, models.QuestionTypeTrueFalse, models.QuestionTypeEssay, models.QuestionTypeShortAnswer))
+	bancoqSearchCmd.Flags().StringVar(&searchCommandFlags.Author, "author", "", "Filtrar por autor")
+	bancoqSearchCmd.Flags().StringSliceVar(&searchCommandFlags.Tags, "tag", []string{}, "Filtrar por tag (atualmente considera apenas a primeira tag fornecida)")
 
 	// Pagination flags
-	bancoqSearchCmd.Flags().IntVar(&searchFlags.Limit, "limit", 20, "Número de questões a serem exibidas por página")
-	bancoqSearchCmd.Flags().IntVar(&searchFlags.Page, "page", 1, "Número da página a ser visualizada")
+	bancoqSearchCmd.Flags().IntVar(&searchCommandFlags.Limit, "limit", 20, "Número de questões por página")
+	bancoqSearchCmd.Flags().IntVar(&searchCommandFlags.Page, "page", 1, "Número da página")
 
 	// Sort flags
-	bancoqSearchCmd.Flags().StringVar(&searchFlags.SortBy, "sort-by", "created_at", "Coluna para ordenação (padrão: created_at; 'relevance' pode ser suportado futuramente com FTS)")
-	bancoqSearchCmd.Flags().StringVar(&searchFlags.Order, "order", "desc", "Ordem da ordenação (valores: asc, desc)")
+	bancoqSearchCmd.Flags().StringVar(&searchCommandFlags.SortBy, "sort-by", "created_at", "Coluna para ordenação (padrão: created_at)") // 'relevance' could be added if FTS is implemented
+	bancoqSearchCmd.Flags().StringVar(&searchCommandFlags.Order, "order", "desc", "Ordem (asc, desc)")
 
 	// Search specific flag
-	bancoqSearchCmd.Flags().StringSliceVar(&searchFlags.SearchFields, "field", []string{"question_text", "subject", "topic"}, "Campos para realizar a busca textual (ex: question_text, subject, topic, tags, source, author, all)")
+	bancoqSearchCmd.Flags().StringSliceVar(&searchCommandFlags.SearchFields, "field", []string{"question_text", "subject", "topic"}, "Campos para busca textual (ex: question_text, subject, topic, tags, all)")
 }
 
+// isValidSearchDifficulty - wrapper for list's validator, allows empty
+func isValidSearchDifficulty(difficulty string) bool {
+	return isValidListDifficulty(difficulty) // from list.go (or a common validator package)
+}
+
+// isValidSearchQuestionType - wrapper for list's validator, allows empty
+func isValidSearchQuestionType(qType string) bool {
+	return isValidListQuestionType(qType) // from list.go (or a common validator package)
+}
+
+
 func runSearchQuestions(cmd *cobra.Command, args []string) {
-	if err := db.InitDB(""); err != nil {
-		fmt.Fprintf(os.Stderr, "Erro ao inicializar o banco de dados: %v\n", err)
-		os.Exit(1)
-	}
+	// A inicialização do DB agora é feita no PersistentPreRunE do BancoqCmd
 
 	searchQuery := args[0]
 	if strings.TrimSpace(searchQuery) == "" {
@@ -73,30 +84,45 @@ func runSearchQuestions(cmd *cobra.Command, args []string) {
 		os.Exit(1)
 	}
 
+	// Validate flags
+	if !isValidSearchDifficulty(searchCommandFlags.Difficulty) {
+		fmt.Fprintf(os.Stderr, "Valor inválido para --difficulty: '%s'. Use '%s', '%s' ou '%s'.\n", searchCommandFlags.Difficulty, models.DifficultyEasy, models.DifficultyMedium, models.DifficultyHard)
+		os.Exit(1)
+	}
+	if !isValidSearchQuestionType(searchCommandFlags.Type) {
+		fmt.Fprintf(os.Stderr, "Valor inválido para --type: '%s'. Use '%s', '%s', '%s' ou '%s'.\n", searchCommandFlags.Type, models.QuestionTypeMultipleChoice, models.QuestionTypeTrueFalse, models.QuestionTypeEssay, models.QuestionTypeShortAnswer)
+		os.Exit(1)
+	}
+	order := strings.ToLower(searchCommandFlags.Order)
+	if order != "asc" && order != "desc" {
+		fmt.Fprintf(os.Stderr, "Valor inválido para --order: '%s'. Use 'asc' ou 'desc'.\n", searchCommandFlags.Order)
+		os.Exit(1)
+	}
+
+
 	filters := make(map[string]interface{})
 
 	// Standard filters
-	if searchFlags.Subject != "" {
-		filters["subject"] = searchFlags.Subject
+	if searchCommandFlags.Subject != "" {
+		filters["subject"] = searchCommandFlags.Subject
 	}
-	if searchFlags.Topic != "" {
-		filters["topic"] = searchFlags.Topic
+	if searchCommandFlags.Topic != "" {
+		filters["topic"] = searchCommandFlags.Topic
 	}
-	if searchFlags.Difficulty != "" {
-		filters["difficulty"] = searchFlags.Difficulty
+	if searchCommandFlags.Difficulty != "" {
+		filters["difficulty"] = searchCommandFlags.Difficulty
 	}
-	if searchFlags.Type != "" {
-		filters["question_type"] = searchFlags.Type // DB field is question_type
+	if searchCommandFlags.Type != "" {
+		filters["question_type"] = searchCommandFlags.Type
 	}
-	if searchFlags.Author != "" {
-		filters["author"] = searchFlags.Author
+	if searchCommandFlags.Author != "" {
+		filters["author"] = searchCommandFlags.Author
 	}
-	if len(searchFlags.Tags) > 0 {
-		// The `db.ListQuestions` handles `filters["tags"]` with a LIKE clause: `tags LIKE %tagValue%`
-		// If multiple --tag flags are provided, we might want to pass them all and let db layer decide how to combine (e.g. AND or OR)
-		// For now, consistent with `list`, we'll pass the first one if that's how db.ListQuestions handles it.
-		// The current db.ListQuestions implementation for `case "tags":` uses `"%"+valStr+"%"` which means it expects a single string.
-		filters["tags"] = searchFlags.Tags[0]
+	if len(searchCommandFlags.Tags) > 0 {
+		filters["tags"] = searchCommandFlags.Tags[0] // Consistent with list.go, uses first tag
+		if len(searchCommandFlags.Tags) > 1 {
+			fmt.Fprintln(os.Stdout, "Aviso: Múltiplas tags foram fornecidas. Atualmente, a filtragem considera apenas a primeira tag:", searchCommandFlags.Tags[0])
+		}
 	}
 
 	// Search specific filters
@@ -104,65 +130,63 @@ func runSearchQuestions(cmd *cobra.Command, args []string) {
 
 	processedSearchFields := []string{}
 	userProvidedAll := false
-	for _, f := range searchFlags.SearchFields {
+	for _, f := range searchCommandFlags.SearchFields {
 		if strings.ToLower(f) == "all" {
 			userProvidedAll = true
 			break
 		}
-		// Basic validation for field names (can correspond to db.ListQuestions's validSearchFields)
-		// For simplicity, we trust user input here or rely on db.ListQuestions's own validation.
 		processedSearchFields = append(processedSearchFields, strings.ToLower(f))
 	}
 
 	if userProvidedAll {
-		filters["search_fields"] = []string{"question_text", "subject", "topic", "tags", "source", "author"} // Default "all" fields
+		// These are the fields db.ListQuestions knows how to search if "search_fields" contains them.
+		filters["search_fields"] = []string{"id", "subject", "topic", "question_text", "source", "tags", "author", "difficulty", "question_type"}
 	} else if len(processedSearchFields) > 0 {
 		filters["search_fields"] = processedSearchFields
 	} else {
-		// Default if --field is not used or is empty after processing (though cobra default helps)
+		// Default if --field is not used or is empty, cobra default should handle this, but as a safeguard:
 		filters["search_fields"] = []string{"question_text", "subject", "topic"}
 	}
 
-
-	order := strings.ToLower(searchFlags.Order)
-	if order != "asc" && order != "desc" {
-		fmt.Fprintf(os.Stderr, "Valor inválido para --order: '%s'. Use 'asc' ou 'desc'.\n", searchFlags.Order)
-		os.Exit(1)
-	}
-
-	questions, total, err := db.ListQuestions(filters, searchFlags.SortBy, order, searchFlags.Limit, searchFlags.Page)
+	questions, total, err := db.ListQuestions(filters, searchCommandFlags.SortBy, order, searchCommandFlags.Limit, searchCommandFlags.Page)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Erro ao buscar questões: %v\n", err)
 		os.Exit(1)
 	}
 
-	if len(questions) == 0 {
+	if total == 0 {
 		fmt.Println("Nenhuma questão foi encontrada para o termo de busca e filtros aplicados.")
-		if total > 0 {
-			totalPages := int(math.Ceil(float64(total) / float64(searchFlags.Limit)))
-			fmt.Printf("Total de questões no banco que correspondem aos filtros (antes da busca por termo): %d. Total de páginas: %d.\n", total, totalPages)
-		}
 		return
 	}
+    if len(questions) == 0 && searchCommandFlags.Page > 1 {
+        totalPages := int(math.Ceil(float64(total) / float64(searchCommandFlags.Limit)))
+		fmt.Printf("Nenhuma questão encontrada na página %d. Total de páginas: %d.\n", searchCommandFlags.Page, totalPages)
+		fmt.Printf("Total de questões no banco que correspondem aos filtros e termo de busca: %d.\n", total)
+		return
+    }
+
 
 	table := tablewriter.NewWriter(os.Stdout)
-	// Table headers are already in Portuguese.
-	table.SetHeader([]string{"ID", "Matéria", "Tópico", "Tipo", "Dificuldade", "Início da Questão"})
+	table.SetHeader([]string{"ID Curto", "Disciplina", "Tópico", "Tipo", "Dificuldade", "Início da Questão"})
 	table.SetBorder(true)
 	table.SetRowLine(true)
+    table.SetColWidth(60) 
+    table.SetAutoWrapText(false)
+
 
 	for _, q := range questions {
 		idShort := q.ID
-		if len(q.ID) > 8 { // Limitar ID para exibição
-			idShort = q.ID[:8] + "..."
+		if len(q.ID) > 12 {
+			idShort = q.ID[:12] + "..."
 		}
-		questionTextShort := strings.ReplaceAll(q.QuestionText, "\n", " ")
-		if len(questionTextShort) > 50 { // Limitar texto para exibição
-			runes := []rune(questionTextShort) // Lidar com caracteres multi-byte
-			if len(runes) > 50 {
-				questionTextShort = string(runes[:47]) + "..."
+		questionTextPreview := strings.ReplaceAll(q.QuestionText, "\n", " ")
+		maxPreviewLength := 47
+		if len(questionTextPreview) > maxPreviewLength {
+			runes := []rune(questionTextPreview)
+			if len(runes) > maxPreviewLength {
+				questionTextPreview = string(runes[:maxPreviewLength-3]) + "..."
 			} else {
-				questionTextShort = string(runes)
+				questionTextPreview = string(runes)
 			}
 		}
 		row := []string{
@@ -171,17 +195,15 @@ func runSearchQuestions(cmd *cobra.Command, args []string) {
 			q.Topic,
 			models.FormatQuestionTypeToPtBR(q.QuestionType),
 			models.FormatDifficultyToPtBR(q.Difficulty),
-			questionTextShort,
+			questionTextPreview,
 		}
 		table.Append(row)
 	}
 	table.Render()
 
-	totalPages := 0
-	if searchFlags.Limit > 0 { // Evitar divisão por zero
-		totalPages = int(math.Ceil(float64(total) / float64(searchFlags.Limit)))
-	} else if total > 0 { // Se limite não for positivo mas houver itens, considerar 1 página
-		totalPages = 1
+	totalPages := 1
+	if searchCommandFlags.Limit > 0 && total > 0 {
+		totalPages = int(math.Ceil(float64(total) / float64(searchCommandFlags.Limit)))
 	}
-	fmt.Printf("\nPágina %d de %d. Total de questões correspondentes aos filtros e termo de busca: %d.\n", searchFlags.Page, totalPages, total)
+	fmt.Printf("\nPágina %d de %d. Total de questões correspondentes aos filtros e termo de busca: %d.\n", searchCommandFlags.Page, totalPages, total)
 }
