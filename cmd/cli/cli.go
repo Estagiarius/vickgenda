@@ -10,6 +10,10 @@ import (
 	"vickgenda-cli/internal/ids"    // For resolveCmd
 	"vickgenda-cli/internal/squad4" // For DashboardCmd
 	// "vickgenda-cli/internal/tui" // Will be needed if TUI logic is separate
+
+	"vickgenda-cli/cmd/bancoq" // Added for bancoq.BancoqCmd
+	"vickgenda-cli/cmd/prova"  // Added for prova.ProvaCmd
+	"vickgenda-cli/cmd"        // Added for the new commands like TarefaCmd, AgendaCmd etc.
 )
 
 // rootCmd will be defined here
@@ -73,7 +77,25 @@ func init() {
 
 	// Add commands that were previously in cmd/vickgenda/main.go's main()
 	rootCmd.AddCommand(resolveCmd)
-	rootCmd.AddCommand(squad4.DashboardCmd)
+	// squad4.DashboardCmd is now added via InitSquad4Commands in SetupRootCmd
+
+	// Add Squad 2 commands (assuming they are global vars in main cmd package, like agendaCmd, tarefaCmd, rotinaCmd)
+	// These will be initialized from their respective files (e.g., cmd/agenda.go)
+	// Example: rootCmd.AddCommand(cmd.AgendaCmd) - This needs actual variable names
+
+	// Add Squad 3 commands
+	// Example: rootCmd.AddCommand(cmd.AulaCmd)
+	// Example: rootCmd.AddCommand(cmd.NotasCmd)
+
+	// Add Squad 4 commands (relembrar, foco, relatorio)
+	// Example: rootCmd.AddCommand(cmd.RelembrarCmd)
+	// Example: rootCmd.AddCommand(cmd.FocoCmd)
+	// Example: rootCmd.AddCommand(cmd.RelatorioCmd)
+	// Note: squad4.DashboardCmd is added in SetupRootCmd
+
+	// Add Squad 5 commands
+	rootCmd.AddCommand(bancoq.BancoqCmd) // From imported package
+	rootCmd.AddCommand(prova.ProvaCmd)   // From imported package
 }
 
 // GetRootCmd returns the main root command for the application.
@@ -177,6 +199,23 @@ func NewRootCmdRunner() func(cmd *cobra.Command, args []string) error {
 func SetupRootCmd() {
 	rootCmd.RunE = NewRootCmdRunner()
 	// Add other commands that should be part of the main CLI structure
-	rootCmd.AddCommand(resolveCmd)
-	rootCmd.AddCommand(squad4.DashboardCmd)
+	// resolveCmd is already added in init()
+	// squad4.DashboardCmd is now added here along with other Squad 4 commands
+	squad4.InitSquad4Commands(rootCmd) // This adds Dashboard, Relembrar, Foco, Relatorio
+
+	// Commands created by cobra-cli add are typically in the 'cmd' package (e.g. cmd.TarefaCmd)
+	// However, they are not directly accessible here without being exported or a reference passed.
+	// The current structure adds them to a 'rootCmd' within their own files, which is problematic.
+	// For now, we will assume these commands need to be explicitly added here.
+	// This will likely require modification of the generated command files.
+
+	// Placeholder for where new commands would be added if they were accessible:
+	rootCmd.AddCommand(cmd.TarefaCmd)
+	rootCmd.AddCommand(cmd.AgendaCmd)
+	rootCmd.AddCommand(cmd.RotinaCmd)
+	rootCmd.AddCommand(cmd.AulaCmd)
+	rootCmd.AddCommand(cmd.NotasCmd)
+	// DashboardCmd, RelembrarCmd, FocoCmd, RelatorioCmd are added via squad4.InitSquad4Commands
+
+	// Squad 5 commands (bancoq.BancoqCmd, prova.ProvaCmd) are added in init()
 }
