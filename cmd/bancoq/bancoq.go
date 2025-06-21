@@ -14,7 +14,10 @@ var BancoqCmd = &cobra.Command{
 	Long:  `O comando 'bancoq' é o ponto de entrada para todas as operações relacionadas ao banco de questões.
 Ele permite adicionar, editar, excluir, listar, visualizar, buscar e importar questões.
 Utilize os subcomandos para realizar as ações específicas. Por exemplo, 'bancoq add' para adicionar uma nova questão.`,
-	// Run: func(cmd *cobra.Command, args []string) { fmt.Println("bancoq called") },
+	RunE: func(cmd *cobra.Command, args []string) error {
+		fmt.Println("bancoq called, logic to be implemented.")
+		return nil
+	},
 }
 
 // init() is removed from here.
