@@ -7,6 +7,10 @@ var ProvaCmd = &cobra.Command{
 	Use:   "prova",
 	Short: "Gerencia provas e avaliações",
 	Long:  `Permite gerar, listar, visualizar, deletar e exportar provas e avaliações educacionais. Utilize os subcomandos para realizar as ações desejadas.`,
+	RunE: func(cmd *cobra.Command, args []string) error {
+		fmt.Println("prova called, logic to be implemented.")
+		return nil
+	},
 }
 
 // Execute adiciona todos os comandos filhos ao comando raiz e define flags apropriadamente.
