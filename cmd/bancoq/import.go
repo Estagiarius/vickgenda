@@ -29,190 +29,234 @@ var bancoqImportCmd = &cobra.Command{
 	Long: `Importa um conjunto de questões de um arquivo JSON, conforme o esquema de dados definido.
 Este comando permite especificar como tratar conflitos de IDs (falhar, pular, ou atualizar) e
 oferece um modo de simulação (dry-run) para verificar o processo sem efetuar alterações no banco.
-O arquivo JSON deve conter um array de objetos de questão. Consulte a documentação para o esquema exato.`,
+O arquivo JSON deve conter um array de objetos de questão. Consulte 'docs/schemas/question_import_schema.md'.`,
 	Args: cobra.ExactArgs(1),
 	Run:  runImportQuestions,
 }
 
 func init() {
 	BancoqCmd.AddCommand(bancoqImportCmd)
-	bancoqImportCmd.Flags().StringVar(&onConflictPolicy, "on-conflict", "fail", "Política de tratamento para conflitos de ID: 'fail' (falhar), 'skip' (pular), 'update' (atualizar)")
-	bancoqImportCmd.Flags().BoolVar(&isDryRun, "dry-run", false, "Simula a importação sem gravar alterações no banco de dados")
+	bancoqImportCmd.Flags().StringVar(&onConflictPolicy, "on-conflict", "fail", "Política para conflitos de ID: 'fail', 'skip', 'update'")
+	bancoqImportCmd.Flags().BoolVar(&isDryRun, "dry-run", false, "Simula a importação sem gravar no banco")
 }
 
-func runImportQuestions(cmd *cobra.Command, args []string) {
-	if err := db.InitDB(""); err != nil {
-		fmt.Fprintf(os.Stderr, "Erro ao inicializar o banco de dados: %v\n", err)
-		os.Exit(1)
+// validateQuestionData realiza uma validação detalhada dos campos de uma questão.
+func validateQuestionData(q *models.Question, index int) (bool, []string) {
+	var validationErrors []string
+	prefix := fmt.Sprintf("Questão %d (ID JSON: '%s', Disciplina: '%s')", index+1, q.ID, q.Subject)
+
+	if q.Subject == "" {
+		validationErrors = append(validationErrors, fmt.Sprintf("%s: campo 'subject' é obrigatório.", prefix))
 	}
+	if q.Topic == "" {
+		validationErrors = append(validationErrors, fmt.Sprintf("%s: campo 'topic' é obrigatório.", prefix))
+	}
+	if q.QuestionText == "" {
+		validationErrors = append(validationErrors, fmt.Sprintf("%s: campo 'question_text' é obrigatório.", prefix))
+	}
+	if len(q.CorrectAnswers) == 0 {
+		validationErrors = append(validationErrors, fmt.Sprintf("%s: campo 'correct_answers' deve conter pelo menos uma resposta.", prefix))
+	}
+
+	if q.Difficulty == "" {
+		validationErrors = append(validationErrors, fmt.Sprintf("%s: campo 'difficulty' é obrigatório.", prefix))
+	} else if !isValidDifficulty(q.Difficulty) { // Reutilizando de add.go (ou duplicar/mover para local comum)
+		validationErrors = append(validationErrors, fmt.Sprintf("%s: 'difficulty' inválido ('%s'). Valores permitidos: easy, medium, hard.", prefix, q.Difficulty))
+	}
+
+	if q.QuestionType == "" {
+		validationErrors = append(validationErrors, fmt.Sprintf("%s: campo 'question_type' é obrigatório.", prefix))
+	} else if !isValidQuestionType(q.QuestionType) { // Reutilizando de add.go
+		validationErrors = append(validationErrors, fmt.Sprintf("%s: 'question_type' inválido ('%s'). Valores permitidos: multiple_choice, true_false, essay, short_answer.", prefix, q.QuestionType))
+	}
+
+	// Validações específicas para o tipo de questão
+	if q.QuestionType == models.QuestionTypeMultipleChoice || q.QuestionType == models.QuestionTypeTrueFalse {
+		if len(q.AnswerOptions) == 0 {
+			validationErrors = append(validationErrors, fmt.Sprintf("%s: para o tipo '%s', 'answer_options' não pode ser vazio.", prefix, q.QuestionType))
+		}
+	}
+	if q.QuestionType == models.QuestionTypeMultipleChoice {
+		for _, ans := range q.CorrectAnswers {
+			found := false
+			for _, opt := range q.AnswerOptions {
+				if ans == opt {
+					found = true
+					break
+				}
+			}
+			if !found {
+				validationErrors = append(validationErrors, fmt.Sprintf("%s: resposta correta '%s' não encontrada em 'answer_options'.", prefix, ans))
+			}
+		}
+	}
+
+	return len(validationErrors) == 0, validationErrors
+}
+
+// Duplicadas de add.go para evitar dependência de ciclo ou para manter local.
+// Idealmente, estas estariam em um pacote 'validators' ou similar.
+func isValidDifficulty(difficulty string) bool {
+	return difficulty == models.DifficultyEasy || difficulty == models.DifficultyMedium || difficulty == models.DifficultyHard
+}
+func isValidQuestionType(qType string) bool {
+	return qType == models.QuestionTypeMultipleChoice || qType == models.QuestionTypeTrueFalse || qType == models.QuestionTypeEssay || qType == models.QuestionTypeShortAnswer
+}
+
+
+func runImportQuestions(cmd *cobra.Command, args []string) {
+	// A inicialização do DB agora é feita no PersistentPreRunE do BancoqCmd
 
 	filePath := args[0]
 	absFilePath, err := filepath.Abs(filePath)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Erro ao obter o caminho absoluto do arquivo '%s': %v\n", filePath, err)
+		fmt.Fprintf(os.Stderr, "Erro ao obter caminho absoluto de '%s': %v\n", filePath, err)
 		os.Exit(1)
 	}
 
-	// Validate onConflictPolicy
 	validPolicies := map[string]bool{"fail": true, "skip": true, "update": true}
 	if !validPolicies[onConflictPolicy] {
-		fmt.Fprintf(os.Stderr, "Política --on-conflict inválida: '%s'. Valores permitidos: 'fail', 'skip', 'update'.\n", onConflictPolicy)
+		fmt.Fprintf(os.Stderr, "Política --on-conflict inválida: '%s'. Use 'fail', 'skip', ou 'update'.\n", onConflictPolicy)
 		os.Exit(1)
 	}
 
 	fmt.Printf("Importando questões de: %s\n", absFilePath)
 	if isDryRun {
-		fmt.Println("ATENÇÃO: Executando em modo de simulação (Dry Run). Nenhuma alteração será persistida no banco de dados.")
+		fmt.Println("ATENÇÃO: Modo de SIMULAÇÃO (Dry Run). Nenhuma alteração será feita no banco.")
 	}
 	fmt.Printf("Política de conflito de ID: %s\n\n", onConflictPolicy)
 
 	jsonFile, err := os.Open(absFilePath)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Erro ao abrir o arquivo JSON '%s': %v\n", absFilePath, err)
+		fmt.Fprintf(os.Stderr, "Erro ao abrir arquivo JSON '%s': %v\n", absFilePath, err)
 		os.Exit(1)
 	}
 	defer jsonFile.Close()
 
 	byteValue, err := ioutil.ReadAll(jsonFile)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Erro ao ler o arquivo JSON '%s': %v\n", absFilePath, err)
+		fmt.Fprintf(os.Stderr, "Erro ao ler arquivo JSON '%s': %v\n", absFilePath, err)
 		os.Exit(1)
 	}
 
 	var questionsToImport []models.Question
 	if err = json.Unmarshal(byteValue, &questionsToImport); err != nil {
-		fmt.Fprintf(os.Stderr, "Erro ao decodificar o JSON do arquivo '%s': %v\n", absFilePath, err)
-		fmt.Fprintln(os.Stderr, "Verifique se o JSON está formatado corretamente como um array de objetos de questão.")
+		fmt.Fprintf(os.Stderr, "Erro ao decodificar JSON de '%s': %v\nVerifique se o JSON é um array de objetos de questão.\n", absFilePath, err)
 		os.Exit(1)
 	}
 
-	successfulImports := 0
-	failedImports := 0
-	skippedImports := 0
-	updatedImports := 0
-	var errorDetails []string
+	successfulCreations, failedImports, skippedImports, successfulUpdates := 0, 0, 0, 0
+	var importErrorDetails []string
 
 	if len(questionsToImport) == 0 {
-		fmt.Println("Nenhuma questão foi encontrada no arquivo JSON fornecido.")
+		fmt.Println("Nenhuma questão encontrada no arquivo JSON.")
 		return
 	}
 
 	for i, q := range questionsToImport {
-		fmt.Printf("Processando questão %d de %d: Disciplina '%s'...\n", i+1, len(questionsToImport), q.Subject)
+		fmt.Printf("Processando questão %d/%d: Subj: '%s', Topic: '%s'...\n", i+1, len(questionsToImport), q.Subject, q.Topic)
 
-		// Basic Validation
-		if q.Subject == "" || q.Topic == "" || q.Difficulty == "" || q.QuestionText == "" || len(q.CorrectAnswers) == 0 || q.QuestionType == "" {
-			errorMsg := fmt.Sprintf("Questão %d (Disciplina: '%s') inválida: campos obrigatórios faltando (Subject, Topic, Difficulty, QuestionText, CorrectAnswers, QuestionType).", i+1, q.Subject)
-			errorDetails = append(errorDetails, errorMsg)
+		valid, valErrors := validateQuestionData(&q, i)
+		if !valid {
+			importErrorDetails = append(importErrorDetails, valErrors...)
 			failedImports++
-			fmt.Printf("  Erro: %s\n", errorMsg)
+			fmt.Printf("  Erro de validação: %s\n", strings.Join(valErrors, "; "))
 			continue
 		}
-		// TODO: Adicionar validação para os valores de Difficulty e QuestionType contra constantes conhecidas
 
-		isNewQuestion := true // Flag para determinar se devemos criar ou atualizar
-		originalQuestionID := q.ID // Preservar ID original do JSON para mensagens
+		isNewQuestion := true
+		originalJSONID := q.ID // ID como no arquivo JSON, pode ser ""
 
 		if q.ID == "" {
-			q.ID = uuid.NewString()
-			fmt.Printf("  ID não fornecido na questão; novo ID gerado: %s\n", q.ID)
+			q.ID = uuid.NewString() // Gerar novo ID se não fornecido
+			fmt.Printf("  ID não fornecido; novo ID gerado: %s\n", q.ID)
 		} else {
-			originalQuestion, errDbGet := db.GetQuestion(q.ID)
-			if errDbGet == nil { // Questão com este ID existe
-				fmt.Printf("  A questão com ID '%s' já existe no banco de dados.\n", q.ID)
-				isNewQuestion = false // Não é nova, é um conflito potencial
+			// Verificar se ID do JSON já existe no banco
+			existingQuestion, dbErr := db.GetQuestion(q.ID)
+			if dbErr == nil { // Questão com este ID já existe
+				isNewQuestion = false
+				fmt.Printf("  Conflito: Questão com ID '%s' (Subj: '%s') já existe no banco.\n", q.ID, existingQuestion.Subject)
 				switch onConflictPolicy {
 				case "fail":
-					errorMsg := fmt.Sprintf("Questão ID '%s' (Disciplina: '%s') já existe. Falha devido à política 'fail'.", q.ID, q.Subject)
-					errorDetails = append(errorDetails, errorMsg)
+					errStr := fmt.Sprintf("Falha devido à política 'fail' para ID '%s'.", q.ID)
+					importErrorDetails = append(importErrorDetails, errStr)
 					failedImports++
-					fmt.Printf("    %s\n", errorMsg)
+					fmt.Printf("    %s\n", errStr)
 					continue
 				case "skip":
 					skippedImports++
-					fmt.Printf("    Questão ID '%s' (Disciplina: '%s') ignorada devido à política 'skip'.\n", q.ID, q.Subject)
+					fmt.Printf("    Ignorada (política 'skip').\n")
 					continue
 				case "update":
-					fmt.Printf("    Questão ID '%s' (Disciplina: '%s') será atualizada (política 'update').\n", q.ID, q.Subject)
-					// Preservar CreatedAt original se não especificado ou zero nos dados de importação
-					if q.CreatedAt.IsZero() && !originalQuestion.CreatedAt.IsZero() {
-						q.CreatedAt = originalQuestion.CreatedAt
+					fmt.Printf("    Será atualizada (política 'update').\n")
+					// Preservar CreatedAt original do banco se não especificado no JSON
+					if q.CreatedAt.IsZero() && !existingQuestion.CreatedAt.IsZero() {
+						q.CreatedAt = existingQuestion.CreatedAt
+					} else if q.CreatedAt.IsZero() { // Se ambos CreatedAt (JSON e banco) são zero, usar Now()
+						q.CreatedAt = time.Now()
 					}
-					// LastUsedAt do arquivo de importação sobrescreverá, ou será zero se não presente
-					// Author do arquivo de importação sobrescreverá
-
+					// LastUsedAt e Author do JSON sobrescrevem os do banco.
 					if !isDryRun {
 						if errUpdate := db.UpdateQuestion(q); errUpdate != nil {
-							errorMsg := fmt.Sprintf("Erro ao atualizar a questão ID '%s' (Disciplina: '%s'): %v", q.ID, q.Subject, errUpdate)
-							errorDetails = append(errorDetails, errorMsg)
+							errStr := fmt.Sprintf("Erro ao ATUALIZAR ID '%s': %v", q.ID, errUpdate)
+							importErrorDetails = append(importErrorDetails, errStr)
 							failedImports++
 							fmt.Printf("      Erro na atualização: %v\n", errUpdate)
 							continue
 						}
 					}
-					updatedImports++
-					fmt.Printf("    Questão ID '%s' (Disciplina: '%s') %s.\n", q.ID, q.Subject, tern(isDryRun, "seria atualizada", "foi atualizada"))
-					continue // Próxima questão após tratar atualização
+					successfulUpdates++
+					fmt.Printf("    Questão ID '%s' %s.\n", q.ID, tern(isDryRun, "seria ATUALIZADA", "ATUALIZADA"))
+					continue // Próxima questão
 				}
-			} else if !errors.Is(errDbGet, sql.ErrNoRows) && !strings.Contains(errDbGet.Error(), "not found") {
-				// Erro inesperado ao verificar se a questão existe
-				errorMsg := fmt.Sprintf("Erro ao verificar a existência da questão ID '%s' (Disciplina: '%s'): %v", q.ID, q.Subject, errDbGet)
-				errorDetails = append(errorDetails, errorMsg)
+			} else if !errors.Is(dbErr, sql.ErrNoRows) { // Erro inesperado ao verificar
+				errStr := fmt.Sprintf("Erro ao verificar ID '%s' no banco: %v", q.ID, dbErr)
+				importErrorDetails = append(importErrorDetails, errStr)
 				failedImports++
-				fmt.Printf("    %s\n", errorMsg)
+				fmt.Printf("    %s\n", errStr)
 				continue
 			}
-			// Se ErrNoRows ou "not found", significa que o ID do JSON não existe, então prosseguir para criar.
+			// Se sql.ErrNoRows, ID do JSON não existe, então é nova para o banco.
 		}
 
-		// Definir CreatedAt se não fornecido no JSON (e é uma nova questão ou atualização não definiu)
-		if q.CreatedAt.IsZero() {
+		if q.CreatedAt.IsZero() { // Se é nova e CreatedAt não veio do JSON
 			q.CreatedAt = time.Now()
 		}
 
-		// Realizar Importação (Criar nova questão se isNewQuestion for true)
-		if isNewQuestion { // Criar apenas se for genuinamente nova ou ID do JSON não foi encontrado
+		if isNewQuestion { // Somente criar se for realmente nova para o banco
 			if !isDryRun {
-				_, errDbCreate := db.CreateQuestion(q)
-				if errDbCreate != nil {
-					errorMsg := fmt.Sprintf("Erro ao criar questão ID '%s' (Disciplina: '%s', ID Original JSON: '%s'): %v", q.ID, q.Subject, originalQuestionID, errDbCreate)
-					errorDetails = append(errorDetails, errorMsg)
+				if _, errCreate := db.CreateQuestion(q); errCreate != nil {
+					errStr := fmt.Sprintf("Erro ao CRIAR questão (ID JSON: '%s', ID Gerado/Usado: '%s'): %v", originalJSONID, q.ID, errCreate)
+					importErrorDetails = append(importErrorDetails, errStr)
 					failedImports++
-					fmt.Printf("    Erro na criação: %v\n", errDbCreate)
+					fmt.Printf("    Erro na criação: %v\n", errCreate)
 					continue
 				}
-				fmt.Printf("  Questão (Disciplina: '%s') importada com ID %s.\n", q.Subject, q.ID)
-			} else {
-				fmt.Printf("  [Dry Run] Questão (Disciplina: '%s') seria importada com ID %s (ID Original JSON: '%s').\n", q.Subject, q.ID, originalQuestionID)
 			}
-			successfulImports++
+			successfulCreations++
+			fmt.Printf("  Questão (ID JSON: '%s') %s com ID %s.\n", originalJSONID, tern(isDryRun, "seria CRIADA", "CRIADA"), q.ID)
 		}
 	}
 
 	fmt.Println("\n--- Relatório da Importação ---")
 	if isDryRun {
-		fmt.Println("Execução em modo de simulação (Dry Run). Nenhuma alteração foi persistida no banco de dados.")
+		fmt.Println("MODO DE SIMULAÇÃO (Dry Run). Nenhuma alteração foi persistida.")
 	}
 	fmt.Printf("Total de questões no arquivo: %d\n", len(questionsToImport))
-	fmt.Printf("Importadas com sucesso (novas ou que seriam novas): %d\n", successfulImports)
-	if onConflictPolicy == "update" {
-		fmt.Printf("Atualizadas (ou que seriam atualizadas): %d\n", updatedImports)
-	}
-	if onConflictPolicy == "skip" {
-		fmt.Printf("Ignoradas (conflito de ID com política 'skip'): %d\n", skippedImports)
-	}
-	fmt.Printf("Falhas na importação (erros ou conflito com política 'fail'): %d\n", failedImports)
+	fmt.Printf("Criadas com sucesso: %d\n", successfulCreations)
+	fmt.Printf("Atualizadas com sucesso (política 'update'): %d\n", successfulUpdates)
+	fmt.Printf("Ignoradas (política 'skip'): %d\n", skippedImports)
+	fmt.Printf("Falhas (erro de validação, erro no DB, ou política 'fail'): %d\n", failedImports)
 
-	if len(errorDetails) > 0 {
+	if len(importErrorDetails) > 0 {
 		fmt.Println("\nDetalhes dos erros/falhas:")
-		for _, detail := range errorDetails {
+		for _, detail := range importErrorDetails {
 			fmt.Printf("  - %s\n", detail)
 		}
 	}
 	fmt.Println("-------------------------------")
 }
 
-// Simple ternary helper for logging
 func tern(condition bool, trueVal, falseVal string) string {
 	if condition {
 		return trueVal

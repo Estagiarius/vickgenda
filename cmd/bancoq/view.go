@@ -1,12 +1,11 @@
 package bancoq
 
 import (
-	"database/sql" // Keep one
-	"errors"       // Keep one
+	"database/sql"
+	"errors"
 	"fmt"
 	"os"
 	"strings"
-	// "time" // Stays commented out
 
 	"vickgenda-cli/internal/db"
 	"vickgenda-cli/internal/models"
@@ -18,108 +17,110 @@ import (
 var bancoqViewCmd = &cobra.Command{
 	Use:   "view <ID_DA_QUESTAO>",
 	Short: "Visualiza todos os detalhes de uma questão específica",
-	Long:  `Exibe todos os detalhes de uma questão específica do banco de dados, identificada pelo seu ID. As informações são apresentadas em formato de lista de definições.`,
-	Args:  cobra.ExactArgs(1), // Ensures exactly one argument - the ID - is provided
-	Run:   runViewQuestion,
+	Long: `Exibe todos os detalhes de uma questão específica do banco de dados,
+identificada pelo seu ID. As informações são apresentadas de forma clara e legível.
+Exemplo:
+  vickgenda bancoq view 123e4567-e89b-12d3-a456-426614174000`,
+	Args: cobra.ExactArgs(1), // Garante que exatamente um argumento (o ID) seja fornecido
+	Run:  runViewQuestion,
 }
 
 func init() {
 	BancoqCmd.AddCommand(bancoqViewCmd)
-	// No flags for this command yet, but could add --show-answers or format options later.
-	// Exemplo: bancoqViewCmd.Flags().Bool("gabarito", false, "Exibir também o gabarito/respostas corretas")
+	// Nenhuma flag específica para este comando por enquanto.
 }
 
 func runViewQuestion(cmd *cobra.Command, args []string) {
-	if err := db.InitDB(""); err != nil { // Ensure DB is initialized
-		fmt.Fprintf(os.Stderr, "Erro ao inicializar o banco de dados: %v\n", err)
+	// A inicialização do DB agora é feita no PersistentPreRunE do BancoqCmd
+
+	questionID := args[0]
+	if strings.TrimSpace(questionID) == "" {
+		fmt.Fprintln(os.Stderr, "Erro: O ID da questão não pode ser vazio.")
 		os.Exit(1)
 	}
 
-	questionID := args[0]
-
 	question, err := db.GetQuestion(questionID)
 	if err != nil {
-		// Check if the error is because the question was not found
-		if errors.Is(err, sql.ErrNoRows) || strings.Contains(err.Error(), "not found") { // db.GetQuestion returns a wrapped error
+		if errors.Is(err, sql.ErrNoRows) { // Checagem mais idiomática para sql.ErrNoRows
 			fmt.Fprintf(os.Stderr, "Erro: A questão com ID '%s' não foi encontrada.\n", questionID)
 		} else {
 			fmt.Fprintf(os.Stderr, "Erro ao buscar a questão com ID '%s': %v\n", questionID, err)
 		}
 		os.Exit(1)
-		return
+		return // Redundante devido ao os.Exit(1), mas bom para clareza
 	}
 
-	fmt.Printf("Detalhes da Questão ID: %s\n\n", question.ID)
+	fmt.Printf("Detalhes da Questão ID: %s\n", question.ID)
+	fmt.Println(strings.Repeat("-", 40)) // Linha separadora
 
+	// Usando tablewriter para uma exibição formatada como lista de definições (chave: valor)
 	table := tablewriter.NewWriter(os.Stdout)
-	table.SetAutoWrapText(true)
-	// Configurações para parecer uma lista de definições
-	table.SetBorder(false)
-	table.SetColumnSeparator(":")
-	table.SetHeaderLine(false)
-	table.SetCenterSeparator("")
-	table.SetTablePadding("  ") // Adiciona um pouco de padding
-    table.SetAlignment(tablewriter.ALIGN_LEFT)
+	table.SetAutoWrapText(true) // Habilita quebra de linha automática para textos longos
+	table.SetBorder(false)      // Sem bordas externas
+	table.SetColumnSeparator(":") // Separador entre chave e valor
+	table.SetHeaderLine(false)  // Sem linha de cabeçalho
+	table.SetCenterSeparator("")  // Sem separador central (útil para outros modos de tabela)
+	table.SetTablePadding("\t")   // Padding com tabulação para alinhar melhor
+	table.SetAlignment(tablewriter.ALIGN_LEFT) // Alinhar todo o texto à esquerda
 
-
+	// Adicionando dados à tabela
 	data := [][]string{
-		{"ID", question.ID}, // Removido ":" para consistência com tablewriter
+		{"ID", question.ID},
 		{"Disciplina", question.Subject},
 		{"Tópico", question.Topic},
 		{"Dificuldade", models.FormatDifficultyToPtBR(question.Difficulty)},
 		{"Tipo", models.FormatQuestionTypeToPtBR(question.QuestionType)},
-		{"Texto da Questão", question.QuestionText},
 	}
+	table.AppendBulk(data) // Adiciona os primeiros campos
 
+	// Campo de Texto da Questão (pode ser longo)
+	// Para o texto da questão, vamos adicioná-lo separadamente para melhor controle da quebra de linha,
+	// ou garantir que SetAutoWrapText(true) funcione bem com a biblioteca.
+	// Tablewriter com SetAutoWrapText(true) deve lidar bem.
+	table.Append([]string{"Texto da Questão", question.QuestionText})
+
+	// Opções de Resposta (se houver)
 	if len(question.AnswerOptions) > 0 {
-		optionsFormatted := ""
+		optionsStr := new(strings.Builder)
 		for i, opt := range question.AnswerOptions {
-			optionsFormatted += fmt.Sprintf("%c) %s", 'A'+i, opt) // Usando letras para opções
+			fmt.Fprintf(optionsStr, "%c) %s", 'A'+i, opt)
 			if i < len(question.AnswerOptions)-1 {
-				optionsFormatted += "\n"
+				optionsStr.WriteString("\n") // Nova linha para cada opção
 			}
 		}
-		data = append(data, []string{"Opções de Resposta", optionsFormatted})
+		table.Append([]string{"Opções de Resposta", optionsStr.String()})
 	}
 
-	correctAnswersFormatted := ""
+	// Respostas Corretas
 	if len(question.CorrectAnswers) > 0 {
+		answersStr := new(strings.Builder)
 		for i, ans := range question.CorrectAnswers {
-			correctAnswersFormatted += fmt.Sprintf("- %s", ans)
+			fmt.Fprintf(answersStr, "- %s", ans)
 			if i < len(question.CorrectAnswers)-1 {
-				correctAnswersFormatted += "\n"
+				answersStr.WriteString("\n") // Nova linha para cada resposta
 			}
 		}
+		table.Append([]string{"Respostas Corretas", answersStr.String()})
 	} else {
-		correctAnswersFormatted = "(Não especificado)"
+		table.Append([]string{"Respostas Corretas", "(Não especificadas)"})
 	}
-	data = append(data, []string{"Respostas Corretas", correctAnswersFormatted})
 
+	// Campos opcionais e metadados
+	optionalData := [][]string{}
 	if question.Source != "" {
-		data = append(data, []string{"Fonte", question.Source})
+		optionalData = append(optionalData, []string{"Fonte", question.Source})
 	}
 	if len(question.Tags) > 0 {
-		data = append(data, []string{"Tags", strings.Join(question.Tags, ", ")})
+		optionalData = append(optionalData, []string{"Tags", strings.Join(question.Tags, ", ")})
 	}
 	if question.Author != "" {
-		data = append(data, []string{"Autor", question.Author})
+		optionalData = append(optionalData, []string{"Autor", question.Author})
 	}
-	// Year is not a field in models.Question, removing this line.
-	// if question.Year > 0 {
-	// 	data = append(data, []string{"Ano", fmt.Sprintf("%d",question.Year)})
-	// }
+	optionalData = append(optionalData, []string{"Criada em", question.CreatedAt.Format("02/01/2006 às 15:04:05 MST")})
+	optionalData = append(optionalData, []string{"Usada pela Última Vez", models.FormatLastUsedAt(question.LastUsedAt)})
 
-	data = append(data, []string{"Criada em", question.CreatedAt.Format("02/01/2006 15:04:05 MST")})
-	// UpdatedAt is not a field in models.Question
-	// data = append(data, []string{"Atualizada em", question.UpdatedAt.Format("02/01/2006 15:04:05 MST")})
-	data = append(data, []string{"Usada pela Última Vez", models.FormatLastUsedAt(question.LastUsedAt)})
-	// UsageCount is not a field in models.Question
-	// data = append(data, []string{"Contagem de Uso", fmt.Sprintf("%d", question.UsageCount)})
-	// IsPublic is not a field in models.Question
-	// data = append(data, []string{"Pública", fmt.Sprintf("%t", question.IsPublic)})
+	table.AppendBulk(optionalData)
 
-	for _, v := range data {
-        table.Append(v)
-    }
-	table.Render()
+	table.Render() // Renderiza a tabela
+	fmt.Println(strings.Repeat("-", 40)) // Linha separadora no final
 }
