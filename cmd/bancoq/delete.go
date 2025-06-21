@@ -8,6 +8,11 @@ import (
 
 	"vickgenda-cli/internal/db"
 
+	"strings"
+
+	"vickgenda-cli/internal/db"
+	"vickgenda-cli/internal/models" // Para models.Question no preview
+
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/spf13/cobra"
 )
@@ -15,9 +20,13 @@ import (
 var bancoqDeleteCmd = &cobra.Command{
 	Use:   "delete <ID_DA_QUESTAO>",
 	Short: "Remove uma questão do banco de dados",
-	Long:  `Remove permanentemente uma questão específica do banco de dados, utilizando o seu ID. Por padrão, solicita confirmação antes de excluir, a menos que a flag --force seja utilizada.`,
-	Args:  cobra.ExactArgs(1),
-	Run:   runDeleteQuestion,
+	Long: `Remove permanentemente uma questão específica do banco de dados, utilizando o seu ID.
+Por padrão, solicita confirmação antes de excluir. Use a flag --force para pular a confirmação.
+Exemplo:
+  vickgenda bancoq delete 123e4567-e89b-12d3-a456-426614174000
+  vickgenda bancoq delete 123e4567-e89b-12d3-a456-426614174000 --force`,
+	Args: cobra.ExactArgs(1), // Garante que exatamente um argumento (o ID) seja fornecido
+	Run:  runDeleteQuestion,
 }
 
 var forceDelete bool
@@ -28,39 +37,54 @@ func init() {
 }
 
 func runDeleteQuestion(cmd *cobra.Command, args []string) {
-	if err := db.InitDB(""); err != nil { // Ensure DB is initialized
-		fmt.Fprintf(os.Stderr, "Erro ao inicializar o banco de dados: %v\n", err)
+	// A inicialização do DB agora é feita no PersistentPreRunE do BancoqCmd
+
+	questionID := args[0]
+	if strings.TrimSpace(questionID) == "" {
+		fmt.Fprintln(os.Stderr, "Erro: O ID da questão não pode ser vazio.")
 		os.Exit(1)
 	}
 
-	questionID := args[0]
-
-	// Confirmation step (if force is false)
-	confirmed := forceDelete // If forceDelete is true, confirmed is true
+	// Confirmation step (unless --force is used)
+	confirmed := forceDelete
 	if !forceDelete {
-		// Primeiro, tentar buscar a questão para exibir seu texto (ou parte dele) na confirmação.
-		// Isso torna a confirmação mais segura para o usuário.
-		var questionTextPreview string
-		q, err := db.GetQuestion(questionID) // Changed from GetQuestionByID to GetQuestion
-		if err != nil { // q will be zero value of models.Question on error
-			// Se não encontrar ou der erro, ainda perguntar, mas sem o texto.
-			questionTextPreview = fmt.Sprintf("com ID '%s' (detalhes não puderam ser carregados)", questionID)
-		} else {
-			if len(q.QuestionText) > 50 { // Limitar o preview do texto. Changed q.Text to q.QuestionText
-				questionTextPreview = fmt.Sprintf("'%s...' (ID: %s)", q.QuestionText[:50], questionID)
-			} else {
-				questionTextPreview = fmt.Sprintf("'%s' (ID: %s)", q.QuestionText, questionID)
+		var questionPreviewMsg string
+		question, err := db.GetQuestion(questionID)
+
+		if err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				// Se a questão não existe, não há nada para deletar.
+				// Informar o usuário e sair pode ser uma boa UX.
+				fmt.Fprintf(os.Stderr, "Aviso: A questão com ID '%s' não foi encontrada. Nada para remover.\n", questionID)
+				return // Sair sem erro, pois o estado desejado (questão não existe) já é verdade.
 			}
+			// Para outros erros ao buscar, a confirmação será mais genérica.
+			questionPreviewMsg = fmt.Sprintf("com ID '%s' (detalhes não puderam ser carregados devido a erro: %v)", questionID, err)
+		} else {
+			// Formatar preview da questão
+			textPreview := question.QuestionText
+			if len(textPreview) > 70 { // Limitar o preview do texto
+				runes := []rune(textPreview)
+				if len(runes) > 70 {
+					textPreview = string(runes[:67]) + "..."
+				} else {
+					textPreview = string(runes)
+				}
+			}
+			questionPreviewMsg = fmt.Sprintf("'%s' (ID: %s, Disciplina: %s, Tópico: %s)",
+				textPreview, question.ID, question.Subject, question.Topic)
 		}
 
 		confirmPrompt := &survey.Confirm{
-			Message: fmt.Sprintf("Tem certeza que deseja remover a questão %s?", questionTextPreview),
+			Message: fmt.Sprintf("Tem certeza que deseja remover permanentemente a questão %s?", questionPreviewMsg),
 			Default: false,
-			Help:    "Esta ação é irreversível e removerá permanentemente a questão do banco de dados.",
+			Help:    "Esta ação é irreversível.",
 		}
-		err = survey.AskOne(confirmPrompt, &confirmed) // Reatribuir err
+		// Reatribuir err para o erro do survey.AskOne
+		err = survey.AskOne(confirmPrompt, &confirmed)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Falha ao obter confirmação: %v. Remoção cancelada.\n", err)
+			os.Exit(1) // Sair se o prompt de confirmação falhar
 			return
 		}
 	}
@@ -71,14 +95,16 @@ func runDeleteQuestion(cmd *cobra.Command, args []string) {
 	}
 
 	// Attempt to delete the question
-	err := db.DeleteQuestion(questionID) // Reatribuir err
+	err := db.DeleteQuestion(questionID)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) { // Idealmente, db.DeleteQuestion ou db.GetQuestionByID retornaria um erro específico
-			fmt.Fprintf(os.Stderr, "Erro: A questão com ID '%s' não foi encontrada para remoção.\n", questionID)
+		if errors.Is(err, sql.ErrNoRows) {
+			// Este caso é um pouco redundante se a verificação acima (ao buscar para preview) já tratou.
+			// Mas é uma boa salvaguarda se a questão for deletada entre o preview e a confirmação.
+			fmt.Fprintf(os.Stderr, "Erro: A questão com ID '%s' não foi encontrada para remoção (pode ter sido removida por outro processo).\n", questionID)
 		} else {
-			fmt.Fprintf(os.Stderr, "Erro ao remover a questão: %v\n", err)
+			fmt.Fprintf(os.Stderr, "Erro ao remover a questão com ID '%s': %v\n", questionID, err)
 		}
-		os.Exit(1) // Exit with error status if deletion failed
+		os.Exit(1)
 		return
 	}
 
